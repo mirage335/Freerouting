@@ -545,14 +545,26 @@ export anchorScriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
 export anchorScriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
 export anchorName=$(basename "$anchorScriptAbsoluteLocation")
 
+# Ignore '--' suffix specific software name convention.
+export anchorName=${anchorName%"--"*}
+
+export anchorSourceDir="freerouting"
 export anchorSource="ubiquitous_bash.sh"
-export anchorSourcePath=ubiquitous_bash/"$anchorSource"
+export anchorSourcePath="$anchorSourceDir"/"$anchorSource"
 
 export anchorLabName=anchorLabName
 export anchorLabNameAlt="$anchorLabName"Mini
 
 export anchorEntity=""
 #export anchorEntity="entity/"
+
+if [[ "$anchorName" == "_anchor" ]]
+then
+	! [[ -e "$anchorScriptAbsoluteFolder"/"$anchorSource" ]] && exit 1
+	
+	"$anchorScriptAbsoluteFolder"/"$anchorSource" _anchor
+	exit "$?"
+fi
 
 _launch_anchor "$@"
 

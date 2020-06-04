@@ -138,6 +138,7 @@ else	#FAIL, implies [[ "$ub_import" == "true" ]]
 fi
 
 #Override.
+# DANGER: Recursion hazard. Do not create overrides without checking that alternate exists.
 
 # WARNING: Only partially compatible.
 if ! type md5sum > /dev/null 2>&1 && type md5 > /dev/null 2>&1
@@ -155,6 +156,30 @@ fi
 #		md5sum "$@"
 #	}
 #fi
+
+
+# WARNING: DANGER: Compatibility may not be guaranteed!
+if ! type unionfs-fuse > /dev/null 2>&1 && type unionfs > /dev/null 2>&1 && man unionfs | grep 'unionfs-fuse - A userspace unionfs implementation' > /dev/null 2>&1
+then
+	unionfs-fuse() {
+		unionfs "$@"
+	}
+fi
+
+if ! type qemu-arm-static > /dev/null 2>&1 && type qemu-arm > /dev/null 2>&1
+then
+	qemu-arm-static() {
+		qemu-arm "$@"
+	}
+fi
+
+if ! type qemu-armeb-static > /dev/null 2>&1 && type qemu-armeb > /dev/null 2>&1
+then
+	qemu-armeb-static() {
+		qemu-armeb "$@"
+	}
+fi
+
 
 #Override (Program).
 
@@ -435,7 +460,7 @@ _compat_realpath() {
 	export compat_realpath_bin=/opt/local/libexec/gnubin/realpath
 	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
 	
-	export compat_realpath_bin=$(which realpath)
+	export compat_realpath_bin=$(type -p realpath)
 	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
 	
 	export compat_realpath_bin=/bin/realpath
@@ -1561,6 +1586,45 @@ _messagePlain_probe_cmd() {
 }
 _messageCMD() {
 	_messagePlain_probe_cmd "$@"
+}
+
+#Blue. Diagnostic instrumentation.
+#Prints "$@" with quotes around every parameter.
+_messagePlain_probe_quoteAdd() {
+	
+	#https://stackoverflow.com/questions/1668649/how-to-keep-quotes-in-bash-arguments
+	
+	local currentCommandStringPunctuated
+	local currentCommandStringParameter
+	for currentCommandStringParameter in "$@"; do 
+		currentCommandStringParameter="${currentCommandStringParameter//\\/\\\\}"
+		currentCommandStringPunctuated="$currentCommandStringPunctuated \"${currentCommandStringParameter//\"/\\\"}\""
+	done
+	#_messagePlain_probe "$currentCommandStringPunctuated"
+	
+	echo -e -n '\E[0;34m '
+	
+	_safeEcho "$currentCommandStringPunctuated"
+	
+	echo -e -n ' \E[0m'
+	echo
+	
+	return
+}
+
+#Blue. Diagnostic instrumentation.
+#Prints "$@" and runs "$@".
+# WARNING: Use with care.
+_messagePlain_probe_cmd_quoteAdd() {
+	
+	_messagePlain_probe_quoteAdd "$@"
+	
+	"$@"
+	
+	return
+}
+_messageCMD_quoteAdd() {
+	_messagePlain_probe_cmd_quoteAdd "$@"
 }
 
 #Demarcate major steps.
@@ -5702,7 +5766,22 @@ _apt-file() {
 	_timeout 750 "$scriptAbsoluteLocation" _apt-file_sequence "$@"
 }
 
+
+
+
+
+
+
+
+
+
 _fetchDep_debianStretch_special() {
+# 	if [[ "$1" == *"java"* ]]
+# 	then
+# 		sudo -n apt-get install --install-recommends -y default-jdk default-jre
+# 		return 0
+# 	fi
+	
 	if [[ "$1" == *"wine"* ]] && ! dpkg --print-foreign-architectures | grep i386 > /dev/null 2>&1
 	then
 		sudo -n dpkg --add-architecture i386
@@ -5773,7 +5852,7 @@ _fetchDep_debianStretch_special() {
 		wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo -n apt-key add -
 		
 		sudo -n apt-get update
-		sudo -n apt-get install --install-recommends -y dkms virtualbox-6.0
+		sudo -n apt-get install --install-recommends -y dkms virtualbox-6.1
 		
 		echo "WARNING: Recommend manual system configuration after install. See https://www.virtualbox.org/wiki/Downloads ."
 		
@@ -5992,7 +6071,343 @@ _fetchDep_debianStretch() {
 	"$scriptAbsoluteLocation" _fetchDep_debianStretch_sequence "$@"
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+_fetchDep_debianBuster_special() {
+# 	if [[ "$1" == *"java"* ]]
+# 	then
+# 		sudo -n apt-get install --install-recommends -y default-jdk default-jre
+# 		return 0
+# 	fi
+	
+	if [[ "$1" == *"wine"* ]] && ! dpkg --print-foreign-architectures | grep i386 > /dev/null 2>&1
+	then
+		sudo -n dpkg --add-architecture i386
+		sudo -n apt-get update
+		sudo -n apt-get install --install-recommends -y wine wine32 wine64 libwine libwine:i386 fonts-wine
+		return 0
+	fi
+	
+	if [[ "$1" == "realpath" ]] || [[ "$1" == "readlink" ]] || [[ "$1" == "dirname" ]] || [[ "$1" == "basename" ]] || [[ "$1" == "sha512sum" ]] || [[ "$1" == "sha256sum" ]] || [[ "$1" == "head" ]] || [[ "$1" == "tail" ]] || [[ "$1" == "sleep" ]] || [[ "$1" == "env" ]] || [[ "$1" == "cat" ]] || [[ "$1" == "mkdir" ]] || [[ "$1" == "dd" ]] || [[ "$1" == "rm" ]] || [[ "$1" == "ln" ]] || [[ "$1" == "ls" ]] || [[ "$1" == "test" ]] || [[ "$1" == "true" ]] || [[ "$1" == "false" ]]
+	then
+		sudo -n apt-get install --install-recommends -y coreutils
+		return 0
+	fi
+	
+	if [[ "$1" == "mount" ]] || [[ "$1" == "umount" ]] || [[ "$1" == "losetup" ]]
+	then
+		sudo -n apt-get install --install-recommends -y mount
+		return 0
+	fi
+	
+	if [[ "$1" == "mountpoint" ]] || [[ "$1" == "mkfs" ]]
+	then
+		sudo -n apt-get install --install-recommends -y util-linux
+		return 0
+	fi
+	
+	if [[ "$1" == "mkfs.ext4" ]]
+	then
+		sudo -n apt-get install --install-recommends -y e2fsprogs
+		return 0
+	fi
+	
+	if [[ "$1" == "parted" ]] || [[ "$1" == "partprobe" ]]
+	then
+		sudo -n apt-get install --install-recommends -y parted
+		return 0
+	fi
+	
+	if [[ "$1" == "qemu-arm-static" ]] || [[ "$1" == "qemu-armeb-static" ]]
+	then
+		sudo -n apt-get install --install-recommends -y qemu qemu-user-static binfmt-support
+		#update-binfmts --display
+		return 0
+	fi
+	
+	if [[ "$1" == "qemu-system-x86_64" ]]
+	then
+		sudo -n apt-get install --install-recommends -y qemu-system-x86
+		return 0
+	fi
+	
+	if [[ "$1" == "qemu-img" ]]
+	then
+		sudo -n apt-get install --install-recommends -y qemu-utils
+		return 0
+	fi
+	
+	if [[ "$1" == "VirtualBox" ]] || [[ "$1" == "VBoxSDL" ]] || [[ "$1" == "VBoxManage" ]] || [[ "$1" == "VBoxHeadless" ]]
+	then
+		sudo -n mkdir -p /etc/apt/sources.list.d
+		echo 'deb http://download.virtualbox.org/virtualbox/debian buster contrib' | sudo -n tee /etc/apt/sources.list.d/vbox.list > /dev/null 2>&1
+		
+		"$scriptAbsoluteLocation" _getDep wget
+		! _wantDep wget && return 1
+		
+		# TODO Check key fingerprints match "B9F8 D658 297A F3EF C18D  5CDF A2F6 83C5 2980 AECF" and "7B0F AB3A 13B9 0743 5925  D9C9 5442 2A4B 98AB 5139" respectively.
+		wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo -n apt-key add -
+		wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo -n apt-key add -
+		
+		sudo -n apt-get update
+		sudo -n apt-get install --install-recommends -y dkms virtualbox-6.1
+		
+		echo "WARNING: Recommend manual system configuration after install. See https://www.virtualbox.org/wiki/Downloads ."
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "gpg" ]]
+	then
+		sudo -n apt-get install --install-recommends -y gnupg
+		return 0
+	fi
+	
+	#Unlikely scenario for hosts.
+	if [[ "$1" == "grub-install" ]]
+	then
+		sudo -n apt-get install --install-recommends -y grub2
+		#sudo -n apt-get install --install-recommends -y grub-legacy
+		return 0
+	fi
+	
+	if [[ "$1" == "MAKEDEV" ]]
+	then
+		sudo -n apt-get install --install-recommends -y makedev
+		return 0
+	fi
+	
+	if [[ "$1" == "fgrep" ]]
+	then
+		sudo -n apt-get install --install-recommends -y grep
+		return 0
+	fi
+	
+	if [[ "$1" == "fgrep" ]]
+	then
+		sudo -n apt-get install --install-recommends -y grep
+		return 0
+	fi
+	
+	if [[ "$1" == "awk" ]]
+	then
+		sudo -n apt-get install --install-recommends -y mawk
+		return 0
+	fi
+	
+	if [[ "$1" == "kill" ]] || [[ "$1" == "ps" ]]
+	then
+		sudo -n apt-get install --install-recommends -y procps
+		return 0
+	fi
+	
+	if [[ "$1" == "find" ]]
+	then
+		sudo -n apt-get install --install-recommends -y findutils
+		return 0
+	fi
+	
+	if [[ "$1" == "docker" ]]
+	then
+		sudo -n update-alternatives --set iptables /usr/sbin/iptables-legacy
+		sudo -n update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+		#sudo -n systemctl restart docker
+		
+		sudo -n apt-get install --install-recommends -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
+		
+		"$scriptAbsoluteLocation" _getDep curl
+		! _wantDep curl && return 1
+		
+		curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | sudo -n apt-key add -
+		local aptKeyFingerprint
+		aptKeyFingerprint=$(sudo -n apt-key fingerprint 0EBFCD88 2> /dev/null)
+		[[ "$aptKeyFingerprint" == "" ]] && return 1
+		
+		sudo -n add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") $(lsb_release -cs) stable"
+		
+		sudo -n apt-get update
+		
+		sudo -n apt-get remove -y docker docker-engine docker.io docker-ce docker
+		sudo -n apt-get install --install-recommends -y docker-ce
+		
+		sudo -n usermod -a -G docker "$USER"
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "smbd" ]]
+	then
+		sudo -n apt-get install --install-recommends -y samba
+		return 0
+	fi
+	
+	if [[ "$1" == "atom" ]]
+	then
+		curl -L https://packagecloud.io/AtomEditor/atom/gpgkey | sudo -n apt-key add -
+		sudo -n sh -c 'echo "deb [arch=amd64] https://packagecloud.io/AtomEditor/atom/any/ any main" > /etc/apt/sources.list.d/atom.list'
+		
+		sudo -n apt-get update
+		
+		sudo -n apt-get install --install-recommends -y atom
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "GL/gl.h" ]] || [[ "$1" == "GL/glext.h" ]] || [[ "$1" == "GL/glx.h" ]] || [[ "$1" == "GL/glxext.h" ]] || [[ "$1" == "GL/dri_interface.h" ]] || [[ "$1" == "x86_64-linux-gnu/pkgconfig/dri.pc" ]]
+	then
+		sudo -n apt-get install --install-recommends -y mesa-common-dev
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "go" ]]
+	then
+		sudo -n apt-get install --install-recommends -y golang-go
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "php" ]]
+	then
+		sudo -n apt-get install --no-install-recommends -y php
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "cura-lulzbot" ]]
+	then
+		#Testing/Sid only as of Stretch release cycle.
+		#sudo -n apt-get install --install-recommends -y rustc cargo
+		
+		echo "Requires manual installation. See https://www.lulzbot.com/learn/tutorials/cura-lulzbot-edition-installation-debian ."
+cat << 'CZXWXcRMTo8EmM8i4d'
+wget -qO - https://download.alephobjects.com/ao/aodeb/aokey.pub | sudo -n apt-key add -
+sudo -n cp /etc/apt/sources.list /etc/apt/sources.list.bak && sudo -n sed -i '$a deb http://download.alephobjects.com/ao/aodeb jessie main' /etc/apt/sources.list && sudo -n apt-get update && sudo -n apt-get install cura-lulzbot
+CZXWXcRMTo8EmM8i4d
+		echo "(typical)"
+		_stop 1
+	fi
+	
+	if [[ "$1" =~ "FlashPrint" ]]
+	then
+		#Testing/Sid only as of Stretch release cycle.
+		#sudo -n apt-get install --install-recommends -y rustc cargo
+		
+		echo "Requires manual installation. See http://www.flashforge.com/support-center/flashprint-support/ ."
+		_stop 1
+	fi
+	
+	if [[ "$1" == "cargo" ]] || [[ "$1" == "rustc" ]]
+	then
+		#Testing/Sid only as of Stretch release cycle.
+		#sudo -n apt-get install --install-recommends -y rustc cargo
+		
+		echo "Requires manual installation."
+cat << 'CZXWXcRMTo8EmM8i4d'
+curl https://sh.rustup.rs -sSf | sh
+echo '[[ -e "$HOME"/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
+CZXWXcRMTo8EmM8i4d
+		echo "(typical)"
+		_stop 1
+	fi
+	
+	if [[ "$1" == "firejail" ]]
+	then
+		echo "WARNING: Recommend manual system configuration after install. See https://firejail.wordpress.com/download-2/ ."
+		echo "WARNING: Desktop override symlinks may cause problems, especially preventing proxy host jumping by CoreAutoSSH!"
+		return 1
+	fi
+	
+	
+	return 1
+}
+
+_fetchDep_debianBuster_sequence() {
+	_start
+	
+	_mustGetSudo
+	
+	_wantDep "$1" && _stop 0
+	
+	_fetchDep_debianBuster_special "$@" && _wantDep "$1" && _stop 0
+	
+	sudo -n apt-get install --install-recommends -y "$1" && _wantDep "$1" && _stop 0
+	
+	_apt-file search "$1" > "$safeTmp"/pkgsOut 2> "$safeTmp"/pkgsErr
+	
+	local sysPathAll
+	sysPathAll=$(sudo -n bash -c "echo \$PATH")
+	sysPathAll="$PATH":"$sysPathAll"
+	local sysPathArray
+	IFS=':' read -r -a sysPathArray <<< "$sysPathAll"
+	
+	local currentSysPath
+	local matchingPackageFile
+	local matchingPackagePattern
+	local matchingPackage
+	for currentSysPath in "${sysPathArray[@]}"
+	do
+		matchingPackageFile=""
+		matchingPackagePath=""
+		matchingPackage=""
+		matchingPackagePattern="$currentSysPath"/"$1"
+		matchingPackageFile=$(grep ': '$matchingPackagePattern'$' "$safeTmp"/pkgsOut | cut -f2- -d' ')
+		matchingPackage=$(grep ': '$matchingPackagePattern'$' "$safeTmp"/pkgsOut | cut -f1 -d':')
+		if [[ "$matchingPackage" != "" ]]
+		then
+			sudo -n apt-get install --install-recommends -y "$matchingPackage"
+			_wantDep "$1" && _stop 0
+		fi
+	done
+	matchingPackage=""
+	matchingPackage=$(head -n 1 "$safeTmp"/pkgsOut | cut -f1 -d':')
+	sudo -n apt-get install --install-recommends -y "$matchingPackage"
+	_wantDep "$1" && _stop 0
+	
+	_stop 1
+}
+
+_fetchDep_debianBuster() {
+	#Run up to 2 times. On rare occasion, cache will become unusable again by apt-find before an installation can be completed. Overall, apt-find is the single weakest link in the system.
+	"$scriptAbsoluteLocation" _fetchDep_debianBuster_sequence "$@"
+	"$scriptAbsoluteLocation" _fetchDep_debianBuster_sequence "$@"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 _fetchDep_debian() {
+	
+	# WARNING: Obsolete. Declining support. Eventual removal expected approximately one year after two Debian stable releases.
 	if [[ -e /etc/debian_version ]] && cat /etc/debian_version | head -c 1 | grep 9 > /dev/null 2>&1
 	then
 		_fetchDep_debianStretch "$@"
@@ -6001,7 +6416,7 @@ _fetchDep_debian() {
 	
 	if [[ -e /etc/debian_version ]] && cat /etc/debian_version | head -c 2 | grep 10 > /dev/null 2>&1
 	then
-		_fetchDep_debianStretch "$@"
+		_fetchDep_debianBuster "$@"
 		return
 	fi
 	
@@ -6175,6 +6590,432 @@ _stopwatch() {
 	bc <<< "$measureDateB - $measureDateA"
 }
 
+
+
+_set_java_arbitrary() {
+	export ubJava="$1"
+}
+_check_java_arbitrary() {
+	type "$ubJava" > /dev/null 2>&1
+}
+
+
+_java_openjdkANY_check_filter() {
+	head -n 1 | grep -i 'OpenJDK'
+}
+_java_openjdk11_check_filter() {
+	_java_openjdkANY_check_filter | grep 'version.\{0,4\}11'
+}
+_java_openjdk11_debian_check() {
+	local current_java_path='/usr/lib/jvm/java-11-openjdk-amd64/bin/java'
+	
+	! type "$current_java_path" > /dev/null 2>&1 && return 1
+	
+	#! "$current_java_path" -version 2>&1 | _java_openjdk11_check_filter > /dev/null 2>&1 && return 1
+	
+	_set_java_arbitrary "$current_java_path"
+	
+	return 0
+}
+_java_openjdk11_debian() {
+	if _java_openjdk11_debian_check
+	then
+		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+		"$ubJava" "$@"
+		_stop "$?"
+	fi
+	return 1
+}
+_java_openjdk11_usrbin_check() {
+	local current_java_path='/usr/bin/java'
+	
+	! type "$current_java_path" > /dev/null 2>&1 && return 1
+	
+	! "$current_java_path" -version 2>&1 | _java_openjdk11_check_filter > /dev/null 2>&1 && return 1
+	
+	_set_java_arbitrary "$current_java_path"
+	
+	return 0
+}
+_java_openjdk11_usrbin() {
+	if _java_openjdk11_usrbin_check
+	then
+		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+		"$ubJava" "$@"
+		_stop "$?"
+	fi
+	return 1
+}
+_java_openjdk11_PATH_check() {
+	local current_java_path=$(type -p java 2>/dev/null)
+	
+	[[ ! -e "$current_java_path" ]] && return 1
+	[[ "$current_java_path" == "" ]] && return 1
+	! type "$current_java_path" > /dev/null 2>&1 && return 1
+	
+	! "$current_java_path" -version 2>&1 | _java_openjdk11_check_filter > /dev/null 2>&1 && return 1
+	
+	_set_java_arbitrary "$current_java_path"
+	
+	return 0
+}
+_java_openjdk11_PATH() {
+	if _java_openjdk11_PATH_check
+	then
+		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+		"$ubJava" "$@"
+		_stop "$?"
+	fi
+	return 1
+}
+_java_openjdk11() {
+	_java_openjdk11_debian "$@"
+	[[ "$?" == '0' ]] && return 0
+	_java_openjdk11_usrbin "$@"
+	[[ "$?" == '0' ]] && return 0
+	_java_openjdk11_PATH "$@"
+	[[ "$?" == '0' ]] && return 0
+}
+_set_java_openjdk11() {
+	export ubJava_setOnly='true'
+	_java_openjdk11
+	export ubJava_setOnly='false'
+	_check_java_arbitrary
+}
+_check_java_openjdk11() {
+	_java_openjdk11_debian_check && return 0
+	_java_openjdk11_usrbin_check && return 0
+	_java_openjdk11_PATH_check && return 0
+	return 1
+}
+
+
+
+
+# WARNING: Untested.
+_java_openjdk8_check_filter() {
+	_java_openjdkANY_check_filter | grep 'version.\{0,5\}8'
+}
+_java_openjdk8_debian_check() {
+	local current_java_path='/usr/lib/jvm/java-8-openjdk-amd64/bin/java'
+	
+	! type "$current_java_path" > /dev/null 2>&1 && return 1
+	
+	#! "$current_java_path" -version 2>&1 | _java_openjdk8_check_filter > /dev/null 2>&1 && return 1
+	
+	_set_java_arbitrary "$current_java_path"
+	
+	return 0
+}
+_java_openjdk8_debian() {
+	if _java_openjdk8_debian_check
+	then
+		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+		"$ubJava" "$@"
+		_stop "$?"
+	fi
+	return 1
+}
+_java_openjdk8_usrbin_check() {
+	local current_java_path='/usr/bin/java'
+	
+	! type "$current_java_path" > /dev/null 2>&1 && return 1
+	
+	! "$current_java_path" -version 2>&1 | _java_openjdk8_check_filter > /dev/null 2>&1 && return 1
+	
+	_set_java_arbitrary "$current_java_path"
+	
+	return 0
+}
+_java_openjdk8_usrbin() {
+	if _java_openjdk8_usrbin_check
+	then
+		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+		"$ubJava" "$@"
+		_stop "$?"
+	fi
+	return 1
+}
+_java_openjdk8_PATH_check() {
+	local current_java_path=$(type -p java 2>/dev/null)
+	
+	[[ ! -e "$current_java_path" ]] && return 1
+	[[ "$current_java_path" == "" ]] && return 1
+	! type "$current_java_path" > /dev/null 2>&1 && return 1
+	
+	! "$current_java_path" -version 2>&1 | _java_openjdk8_check_filter > /dev/null 2>&1 && return 1
+	
+	_set_java_arbitrary "$current_java_path"
+	
+	return 0
+}
+_java_openjdk8_PATH() {
+	if _java_openjdk8_PATH_check
+	then
+		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+		"$ubJava" "$@"
+		_stop "$?"
+	fi
+	return 1
+}
+_java_openjdk8() {
+	_java_openjdk8_debian "$@"
+	[[ "$?" == '0' ]] && return 0
+	_java_openjdk8_usrbin "$@"
+	[[ "$?" == '0' ]] && return 0
+	_java_openjdk8_PATH "$@"
+	[[ "$?" == '0' ]] && return 0
+}
+_set_java_openjdk8() {
+	export ubJava_setOnly='true'
+	_java_openjdk8
+	export ubJava_setOnly='false'
+	_check_java_arbitrary
+}
+_check_java_openjdk8() {
+	_java_openjdk8_debian_check && return 0
+	_java_openjdk8_usrbin_check && return 0
+	_java_openjdk8_PATH_check && return 0
+	return 1
+}
+
+
+
+_java_openjdkANY_debian() {
+	_java_openjdk8_debian "$@"
+	[[ "$?" == '0' ]] && return 0
+	_java_openjdk11_debian "$@"
+	[[ "$?" == '0' ]] && return 0
+}
+_java_openjdkANY_usrbin_check() {
+	local current_java_path='/usr/bin/java'
+	
+	! type "$current_java_path" > /dev/null 2>&1 && return 1
+	
+	! "$current_java_path" -version 2>&1 | _java_openjdkANY_check_filter > /dev/null 2>&1 && return 1
+	
+	_set_java_arbitrary "$current_java_path"
+	
+	return 0
+}
+_java_openjdkANY_usrbin() {
+	if _java_openjdkANY_usrbin_check
+	then
+		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+		"$ubJava" "$@"
+		_stop "$?"
+	fi
+	return 1
+}
+_java_openjdkANY_PATH_check() {
+	local current_java_path=$(type -p java 2>/dev/null)
+	
+	[[ ! -e "$current_java_path" ]] && return 1
+	[[ "$current_java_path" == "" ]] && return 1
+	! type "$current_java_path" > /dev/null 2>&1 && return 1
+	
+	! "$current_java_path" -version 2>&1 | _java_openjdkANY_check_filter > /dev/null 2>&1 && return 1
+	
+	_set_java_arbitrary "$current_java_path"
+	
+	return 0
+}
+_java_openjdkANY_PATH() {
+	if _java_openjdkANY_PATH_check
+	then
+		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+		"$ubJava" "$@"
+		_stop "$?"
+	fi
+	return 1
+}
+_java_openjdkANY() {
+	_java_openjdkANY_debian "$@"
+	[[ "$?" == '0' ]] && return 0
+	_java_openjdkANY_usrbin "$@"
+	[[ "$?" == '0' ]] && return 0
+	_java_openjdkANY_PATH "$@"
+	[[ "$?" == '0' ]] && return 0
+}
+_java_openjdk() {
+	_java_openjdkANY "$@"
+}
+_set_java_openjdkANY() {
+	export ubJava_setOnly='true'
+	_java_openjdkANY
+	export ubJava_setOnly='false'
+	_check_java_arbitrary
+}
+_set_java_openjdk() {
+	export ubJava_setOnly='true'
+	_java_openjdk
+	export ubJava_setOnly='false'
+	_check_java_arbitrary
+}
+_check_java_openjdkANY() {
+	_check_java_openjdk11 && return 0
+	_check_java_openjdk8 && return 0
+	_java_openjdkANY_usrbin_check && return 0
+	_java_openjdkANY_PATH_check && return 0
+	return 1
+}
+
+
+
+
+# DANGER: Oracle Java *strongly* discouraged. Support provided as rough example only.
+_java_oraclejdk11_debian_check() {
+	local current_java_path='/usr/lib/jvm/java-11-oracle/bin/java'
+	
+	! type "$current_java_path" > /dev/null 2>&1 && return 1
+	
+	#! "$current_java_path" -version 2>&1 | _java_oraclejdk11_check_filter > /dev/null 2>&1 && return 1
+	
+	_set_java_arbitrary "$current_java_path"
+	
+	return 0
+}
+_java_oraclejdk11_debian() {
+	if _java_oraclejdk11_debian_check
+	then
+		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+		"$ubJava" "$@"
+		_stop "$?"
+	fi
+	return 1
+}
+# _java_oraclejdk11_usrbin_check() {
+# 	local current_java_path='/usr/bin/java'
+# 	
+# 	! type "$current_java_path" > /dev/null 2>&1 && return 1
+# 	
+# 	! "$current_java_path" -version 2>&1 | _java_oraclejdk11_check_filter > /dev/null 2>&1 && return 1
+# 	
+# 	_set_java_arbitrary "$current_java_path"
+# 	
+# 	return 0
+# }
+# _java_oraclejdk11_usrbin() {
+# 	if _java_oraclejdk11_usrbin_check
+# 	then
+# 		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+# 		"$ubJava" "$@"
+# 		_stop "$?"
+# 	fi
+# 	return 1
+# }
+# _java_oraclejdk11_PATH_check() {
+# 	local current_java_path=$(type -p java 2>/dev/null)
+# 	
+# 	[[ ! -e "$current_java_path" ]] && return 1
+# 	[[ "$current_java_path" == "" ]] && return 1
+# 	! type "$current_java_path" > /dev/null 2>&1 && return 1
+# 	
+# 	! "$current_java_path" -version 2>&1 | _java_oraclejdk11_check_filter > /dev/null 2>&1 && return 1
+# 	
+# 	_set_java_arbitrary "$current_java_path"
+# 	
+# 	return 0
+# }
+# _java_oraclejdk11_PATH() {
+# 	if _java_oraclejdk11_PATH_check
+# 	then
+# 		[[ "$ubJava_setOnly" == 'true' ]] && return 0
+# 		"$ubJava" "$@"
+# 		_stop "$?"
+# 	fi
+# 	return 1
+# }
+_java_oraclejdk11() {
+	_java_oraclejdk11_debian "$@"
+	[[ "$?" == '0' ]] && return 0
+# 	_java_oraclejdk11_usrbin "$@"
+# 	[[ "$?" == '0' ]] && return 0
+# 	_java_oraclejdk11_PATH "$@"
+# 	[[ "$?" == '0' ]] && return 0
+}
+_set_java_oraclejdk11() {
+	export ubJava_setOnly='true'
+	_java_oraclejdk11
+	export ubJava_setOnly='false'
+	_check_java_arbitrary
+}
+_check_java_oraclejdk11() {
+	_java_oraclejdk11_debian_check && return 0
+	return 1
+}
+_java_oraclejdk_ANY() {
+	_java_oraclejdk11 "$@"
+	[[ "$?" == '0' ]] && return 0
+}
+_java_oraclejdk() {
+	_java_oraclejdk_ANY "$@"
+}
+_set_java_oraclejdk_ANY() {
+	export ubJava_setOnly='true'
+	_java_oraclejdk_ANY
+	export ubJava_setOnly='false'
+	_check_java_arbitrary
+}
+_set_java_oraclejdk() {
+	export ubJava_setOnly='true'
+	_java_oraclejdk
+	export ubJava_setOnly='false'
+	_check_java_arbitrary
+}
+_check_java_oraclejdk(){
+	_check_java_oraclejdk11
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ATTENTION Overload with 'core.sh' or similar ONLY if further specialization is actually required!
+_test_java() {
+	_wantGetDep java
+	
+	! _check_java_openjdkANY && echo 'missing: openjdk'
+	#! _check_java_openjdk8 && echo 'missing: openjdk8'
+	#! _check_java_openjdk11 && echo 'missing: openjdk11'
+	
+	# DANGER: Oracle Java *strongly* discouraged. Support provided as rough example only.
+	#! _check_java_oraclejdk && echo 'missing: oraclejdk'
+	#! _check_java_oraclejdk11  && echo 'missing: oraclejdk11'
+	
+	return 0
+}
+
+# ATTENTION Overload with 'core.sh' or similar ONLY if further specialization is actually required!
+_set_java() {
+	export ubJava_setOnly='true'
+	_java
+	export ubJava_setOnly='false'
+	_check_java_arbitrary
+}
+
+# ATTENTION Overload with 'core.sh' or similar ONLY if further specialization is actually required!
+_java() {
+	_java_openjdk11 "$@"
+	_java_openjdk8 "$@"
+	_java_openjdkANY "$@"
+	
+	# DANGER: Oracle Java *strongly* discouraged. Support provided as rough example only.
+	#_java_oraclejdk11 "$@"
+	#_java_oraclejdk "$@"
+}
+
+
+
 #####Idle
 
 _gosuBinary() {
@@ -6299,7 +7140,7 @@ _buildGosu_sequence() {
 	mkdir -p "$GNUPGHOME"
 	chmod 700 "$shortTmp"/bgosu
 	gpg --keyserver ha.pool.sks-keyservers.net --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4 || _stop 1
-	gpg --armor --export 036A9C25BF357DD4 > "$safeTmp"/gosudev.asc || stop 1
+	gpg --armor --export 036A9C25BF357DD4 > "$safeTmp"/gosudev.asc || _stop 1
 	
 	if [[ "$haveGosuBin" != "true" ]]
 	then
@@ -6418,8 +7259,21 @@ _findInfrastructure_virtImage() {
 	[[ -e "$scriptLocal"/vm.vdi ]] && export ubVirtImageLocal="true" && return 0
 	[[ -e "$scriptLocal"/vmvdiraw.vmdi ]] && export ubVirtImageLocal="true" && return 0
 	
+	# WARNING: Override implies local image.
+	[[ "$ubVirtImageIsRootPartition" != "" ]] && export ubVirtImageLocal="true" && return 0
+	[[ "$ubVirtImageIsDevice" != "" ]] && export ubVirtImageLocal="true" && return 0
+	[[ "$ubVirtImageOverride" != "" ]] && export ubVirtImageLocal="true" && return 0
+	[[ "$ubVirtDeviceOverride" != "" ]] && export ubVirtImageLocal="true" && return 0
+	#[[ "$ubVirtPlatformOverride" != "" ]] && export ubVirtImageLocal="true" && return 0
+	
+	# WARNING: Symlink implies local image (even if non-existent destination).
+	[[ -h "$scriptLocal"/vm.img ]] && export ubVirtImageLocal="true" && return 0
+	[[ -h "$scriptLocal"/vm.vdi ]] && export ubVirtImageLocal="true" && return 0
+	[[ -h "$scriptLocal"/vmvdiraw.vmdi ]] && export ubVirtImageLocal="true" && return 0
+	
 	_checkSpecialLocks && export ubVirtImageLocal="true" && return 0
 	
+	# DANGER: Recursion hazard.
 	_findInfrastructure_virtImage_script "$@"
 }
 
@@ -6647,7 +7501,10 @@ _searchBaseDir() {
 			
 			newDir=$(_findDir "$subArg")
 			
-			while [[ "$newDir" != "$baseDir"* ]]
+			# Trailing slash added to comparison to prevent partial matching of directory names.
+			# https://stackoverflow.com/questions/12340846/bash-shell-script-to-find-the-closest-parent-directory-of-several-files
+			# https://stackoverflow.com/questions/9018723/what-is-the-simplest-way-to-remove-a-trailing-slash-from-each-parameter
+			while [[ "${newDir%/}/" != "${baseDir%/}/"* ]]
 			do
 				baseDir=$(_findDir "$baseDir"/..)
 				
@@ -6759,7 +7616,8 @@ _stop_virtLocal() {
 }
 
 _test_virtLocal_X11() {
-	_getDep xauth
+	! _wantGetDep xauth && echo warn: missing: xauth && return 1
+	return 0
 }
 
 # TODO: Expansion needed.
@@ -6823,6 +7681,9 @@ _test_abstractfs() {
 	fi
 }
 
+# WARNING: First parameter, "$1" , must always be non-translated program to run or specialized abstractfs command.
+# Specifically do not attempt _abstractfs "$scriptAbsoluteLocation" or similar.
+# "$scriptAbsoluteLocation" _fakeHome "$scriptAbsoluteLocation" _abstractfs bash
 _abstractfs() {
 	#Nesting prohibited. Not fully tested.
 	# WARNING: May cause infinite recursion symlinks.
@@ -6839,7 +7700,21 @@ _abstractfs() {
 	
 	export abstractfs_puid=$(_uid)
 	
-	_base_abstractfs "$@"
+	
+	local current_abstractfs_base_args
+	current_abstractfs_base_args=("${@}")
+	
+	[[ "$ubAbstractFS_enable_CLD" == 'true' ]] && [[ "$ubASD_CLD" != '' ]] && current_abstractfs_base_args+=( "$ubASD_PRJ" "$ubASD_CLD" )
+	
+	# WARNING: Enabling may allow a misplaced 'project.afs' file in "/" , "$HOME' , or similar, to override a legitimate directory.
+	# However, such a misplaced file may already cause wrong directory collisions with abstractfs.
+	# Historically not enabled by default. Consider enabling by default equivalent to at least a minor version bump - be wary of any possible broken use cases.
+	[[ "$abstractfs_projectafs_dir" != "" ]] && [[ "$ubAbstractFS_enable_projectafs_dir" == 'true' ]] && current_abstractfs_base_args+=( "$abstractfs_projectafs_dir" )
+	#[[ "$abstractfs_projectafs_dir" != "" ]] && [[ "$ubAbstractFS_enable_projectafs_dir" != 'false' ]] && current_abstractfs_base_args+=( "$abstractfs_projectafs_dir" )
+	
+	_base_abstractfs "${current_abstractfs_base_args[@]}"
+	
+	
 	_name_abstractfs > /dev/null 2>&1
 	[[ "$abstractfs_name" == "" ]] && return 1
 	
@@ -6847,6 +7722,7 @@ _abstractfs() {
 	
 	_set_share_abstractfs
 	_relink_abstractfs
+	
 	_virtUser "$@"
 	
 	cd "$localPWD"
@@ -6854,10 +7730,27 @@ _abstractfs() {
 	#cd "$abstractfs"
 	
 	local commandExitStatus
+	commandExitStatus=1
 	
 	#_scope_terminal "${processedArgs[@]}"
-	"$abstractfs_command" "${processedArgs[@]}"
-	commandExitStatus=$?
+	
+	if ! [[ -L "$abstractfs" ]] && [[ -d "$abstractfs" ]]
+	then
+		# _messagePlain_bad 'fail: abstractfs: abstractfs_base is a directory: abstractfs_base= ""$abstractfs_base"
+		rmdir "$abstractfs"
+		_set_share_abstractfs_reset
+		_rmlink_abstractfs
+		return 1
+	fi
+	
+	_set_abstractfs_disable_CLD
+	[[ "$abstractfs_command" == 'ub_abstractfs_getOnly_dst' ]] && echo "$abstractfs"
+	[[ "$abstractfs_command" == 'ub_abstractfs_getOnly_src' ]] && echo "$abstractfs_base"
+	if [[ "$abstractfs_command" != 'ub_abstractfs_getOnly_dst' ]] && [[ "$abstractfs_command" != 'ub_abstractfs_getOnly_src' ]]
+	then
+		"$abstractfs_command" "${processedArgs[@]}"
+		commandExitStatus="$?"
+	fi
 	
 	_set_share_abstractfs_reset
 	_rmlink_abstractfs
@@ -6865,12 +7758,467 @@ _abstractfs() {
 	return "$commandExitStatus"
 }
 
+
+
+
+
+_get_abstractfs_dst_procedure() {
+	shift
+	_abstractfs 'ub_abstractfs_getOnly_dst' "$@"
+}
+_get_abstractfs_dst_sequence() {
+	_start
+	_get_abstractfs_dst_procedure "$@"
+	_stop 0
+}
+
+# If the result independent of any particular command is desired, use "_true" as command (first parameter).
+_get_abstractfs_dst() {
+	"$scriptAbsoluteLocation" _get_abstractfs_dst_sequence "$@"
+}
+_get_abstractfs() {
+	_get_abstractfs_dst "$@"
+}
+
+
+
+_get_abstractfs_src_procedure() {
+	shift
+	_abstractfs 'ub_abstractfs_getOnly_src' "$@"
+}
+_get_abstractfs_src_sequence() {
+	_start
+	_get_abstractfs_src_procedure "$@"
+	_stop 0
+}
+# If the result independent of any particular command is desired, use "_true" as command (first parameter).
+_get_abstractfs_src() {
+	"$scriptAbsoluteLocation" _get_abstractfs_src_sequence "$@"
+}
+
+_get_base_abstractfs() {
+	_get_abstractfs_src "$@"
+}
+_get_base_abstractfs_name() {
+	local current_abstractfs_base
+	current_abstractfs_base=$(_get_abstractfs_src "$@")
+	basename "$current_abstractfs_base"
+}
+
+
+
+
+
+# No known production use.
+# ATTENTION Overload ONLY if further specialization is actually required!
+# WARNING: Input parameters must NOT include neighboring ConfigurationLookupDirectory, regardless of whether static ConfigurationLookupDirectory is used.
+_prepare_abstractfs_appdir_none() {
+	_set_abstractfs_AbstractSourceDirectory "$@"
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory
+	
+	##### # ATTENTION: Prior to abstractfs. 'ApplicationProjectDirectory', ConfigurationLookupDirectory.
+	
+	#export ubASD="$ubASD"
+	
+	export ubASD_PRJ="$ubASD_PRJ_none"
+	#export ubASD_PRJ="$ubASD_PRJ_independent"
+	#export ubASD_PRJ="$ubASD_PRJ_shared"
+	#export ubASD_PRJ="$ubASD_PRJ_export"
+	
+	export ubASD_CLD="$ubASD_CLD_none"
+	#export ubASD_CLD="$ubASD_CLD_independent"
+	#export ubASD_CLD="$ubASD_CLD_shared"
+	#export ubASD_CLD="$ubASD_CLD_export"
+	
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory_prior
+	
+	
+	
+	
+	# CLD_none , CLD_independent , CLD_export
+	_set_abstractfs_disable_CLD
+	
+	# CLD_shared
+	#_set_abstractfs_enable_CLD
+	
+	_prepare_abstractfs_appdir "$@"
+	
+	
+	# CAUTION: May be invalid. Do not use or enable. For reference only.
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_none_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_independent_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_shared_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_export_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_none_sub"
+	##export ubADD_CLD="$ubADD""$ubADD_CLD_independent_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_shared_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_export_sub"
+	
+	
+	export ubAFS_PRJ="$ubADD""$ubADD_PRJ_none_sub"
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_independent_sub"
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_shared_sub"
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_export_sub"
+	
+	export ubAFS_CLD="$ubADD""$ubADD_CLD_none_sub"
+	#export ubAFS_CLD="$ubASD_CLD_independent"
+	#export ubAFS_CLD="$ubADD""$ubADD_CLD_shared_sub"
+	#export ubAFS_CLD="$ubADD""$ubADD_CLD_export_sub"
+	
+	
+	#_probe_prepare_abstractfs_appdir_post
+}
+# MISUSE. Permissible, given rare requirement to ensure directories exist to perform common directory determination.
+_set_abstractfs_appdir_none() {
+	_prepare_abstractfs_appdir_none "$@"
+}
+
+
+
+
+
+# No known production use.
+# ATTENTION Overload ONLY if further specialization is actually required!
+# WARNING: Input parameters must NOT include neighboring ConfigurationLookupDirectory, regardless of whether static ConfigurationLookupDirectory is used.
+_prepare_abstractfs_appdir_independent() {
+	_set_abstractfs_AbstractSourceDirectory "$@"
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory
+	
+	##### # ATTENTION: Prior to abstractfs. 'ApplicationProjectDirectory', ConfigurationLookupDirectory.
+	
+	#export ubASD="$ubASD"
+	
+	#export ubASD_PRJ="$ubASD_PRJ_none"
+	export ubASD_PRJ="$ubASD_PRJ_independent"
+	#export ubASD_PRJ="$ubASD_PRJ_shared"
+	#export ubASD_PRJ="$ubASD_PRJ_export"
+	
+	#export ubASD_CLD="$ubASD_CLD_none"
+	export ubASD_CLD="$ubASD_CLD_independent"
+	#export ubASD_CLD="$ubASD_CLD_shared"
+	#export ubASD_CLD="$ubASD_CLD_export"
+	
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory_prior
+	
+	
+	
+	
+	# CLD_none , CLD_independent , CLD_export
+	_set_abstractfs_disable_CLD
+	
+	# CLD_shared
+	#_set_abstractfs_enable_CLD
+	
+	_prepare_abstractfs_appdir "$@"
+	
+	
+	# CAUTION: May be invalid. Do not use or enable. For reference only.
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_none_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_independent_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_shared_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_export_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_none_sub"
+	##export ubADD_CLD="$ubADD""$ubADD_CLD_independent_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_shared_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_export_sub"
+	
+	
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_none_sub"
+	export ubAFS_PRJ="$ubADD""$ubADD_PRJ_independent_sub"
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_shared_sub"
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_export_sub"
+	
+	#export ubAFS_CLD="$ubADD""$ubADD_CLD_none_sub"
+	export ubAFS_CLD="$ubASD_CLD_independent"
+	#export ubAFS_CLD="$ubADD""$ubADD_CLD_shared_sub"
+	#export ubAFS_CLD="$ubADD""$ubADD_CLD_export_sub"
+	
+	
+	#_probe_prepare_abstractfs_appdir_post
+}
+# MISUSE. Permissible, given rare requirement to ensure directories exist to perform common directory determination.
+_set_abstractfs_appdir_independent() {
+	_prepare_abstractfs_appdir_independent "$@"
+}
+
+
+
+
+
+# No known production use.
+# ATTENTION Overload ONLY if further specialization is actually required!
+# WARNING: Input parameters must NOT include neighboring ConfigurationLookupDirectory, regardless of whether static ConfigurationLookupDirectory is used.
+# DANGER: Strongly discouraged. May break use of "project.afs" with alternative layouts and vice versa.
+_prepare_abstractfs_appdir_shared() {
+	_set_abstractfs_AbstractSourceDirectory "$@"
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory
+	
+	##### # ATTENTION: Prior to abstractfs. 'ApplicationProjectDirectory', ConfigurationLookupDirectory.
+	
+	#export ubASD="$ubASD"
+	
+	#export ubASD_PRJ="$ubASD_PRJ_none"
+	#export ubASD_PRJ="$ubASD_PRJ_independent"
+	export ubASD_PRJ="$ubASD_PRJ_shared"
+	#export ubASD_PRJ="$ubASD_PRJ_export"
+	
+	#export ubASD_CLD="$ubASD_CLD_none"
+	#export ubASD_CLD="$ubASD_CLD_independent"
+	export ubASD_CLD="$ubASD_CLD_shared"
+	#export ubASD_CLD="$ubASD_CLD_export"
+	
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory_prior
+	
+	
+	
+	
+	# CLD_none , CLD_independent , CLD_export
+	#_set_abstractfs_disable_CLD
+	
+	# CLD_shared
+	_set_abstractfs_enable_CLD
+	
+	_prepare_abstractfs_appdir "$@"
+	
+	
+	# CAUTION: May be invalid. Do not use or enable. For reference only.
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_none_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_independent_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_shared_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_export_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_none_sub"
+	##export ubADD_CLD="$ubADD""$ubADD_CLD_independent_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_shared_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_export_sub"
+	
+	
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_none_sub"
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_independent_sub"
+	export ubAFS_PRJ="$ubADD""$ubADD_PRJ_shared_sub"
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_export_sub"
+	
+	#export ubAFS_CLD="$ubADD""$ubADD_CLD_none_sub"
+	#export ubAFS_CLD="$ubASD_CLD_independent"
+	export ubAFS_CLD="$ubADD""$ubADD_CLD_shared_sub"
+	#export ubAFS_CLD="$ubADD""$ubADD_CLD_export_sub"
+	
+	
+	#_probe_prepare_abstractfs_appdir_post
+}
+# MISUSE. Permissible, given rare requirement to ensure directories exist to perform common directory determination.
+_set_abstractfs_appdir_shared() {
+	_prepare_abstractfs_appdir_shared "$@"
+}
+
+
+
+
+
+# No known production use.
+# ATTENTION Overload ONLY if further specialization is actually required!
+# WARNING: Input parameters must NOT include neighboring ConfigurationLookupDirectory, regardless of whether static ConfigurationLookupDirectory is used.
+_prepare_abstractfs_appdir_export() {
+	_set_abstractfs_AbstractSourceDirectory "$@"
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory
+	
+	##### # ATTENTION: Prior to abstractfs. 'ApplicationProjectDirectory', ConfigurationLookupDirectory.
+	
+	#export ubASD="$ubASD"
+	
+	#export ubASD_PRJ="$ubASD_PRJ_none"
+	#export ubASD_PRJ="$ubASD_PRJ_independent"
+	#export ubASD_PRJ="$ubASD_PRJ_shared"
+	export ubASD_PRJ="$ubASD_PRJ_export"
+	
+	#export ubASD_CLD="$ubASD_CLD_none"
+	#export ubASD_CLD="$ubASD_CLD_independent"
+	#export ubASD_CLD="$ubASD_CLD_shared"
+	export ubASD_CLD="$ubASD_CLD_export"
+	
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory_prior
+	
+	
+	
+	
+	# CLD_none , CLD_independent , CLD_export
+	_set_abstractfs_disable_CLD
+	
+	# CLD_shared
+	#_set_abstractfs_enable_CLD
+	
+	_prepare_abstractfs_appdir "$@"
+	
+	
+	# CAUTION: May be invalid. Do not use or enable. For reference only.
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_none_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_independent_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_shared_sub"
+	#export ubADD_PRJ="$ubADD""$ubADD_PRJ_export_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_none_sub"
+	##export ubADD_CLD="$ubADD""$ubADD_CLD_independent_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_shared_sub"
+	#export ubADD_CLD="$ubADD""$ubADD_CLD_export_sub"
+	
+	
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_none_sub"
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_independent_sub"
+	#export ubAFS_PRJ="$ubADD""$ubADD_PRJ_shared_sub"
+	export ubAFS_PRJ="$ubADD""$ubADD_PRJ_export_sub"
+	
+	#export ubAFS_CLD="$ubADD""$ubADD_CLD_none_sub"
+	#export ubAFS_CLD="$ubASD_CLD_independent"
+	#export ubAFS_CLD="$ubADD""$ubADD_CLD_shared_sub"
+	export ubAFS_CLD="$ubADD""$ubADD_CLD_export_sub"
+	
+	
+	#_probe_prepare_abstractfs_appdir_post
+}
+# MISUSE. Permissible, given rare requirement to ensure directories exist to perform common directory determination.
+_set_abstractfs_appdir_export() {
+	_prepare_abstractfs_appdir_export "$@"
+}
+
+
+
+
+
+
+# CAUTION: ConfigurationLookupDirectory, managed by "_appdir" functions, is NOT a global configuration registry. ONLY intended to support programs which may require *project-specific* configuration (eg. Eclipse).
+# WARNING: Input parameters must NOT include neighboring ConfigurationLookupDirectory, regardless of whether static ConfigurationLookupDirectory is used.
+# WARNING: All 'mkdir' operations using "$ubADD" or similar must take place *within* abstractfs, to avoid creating a folder conflicting with the required symlink.
+# Input
+# "$@"
+_set_abstractfs_AbstractSourceDirectory() {
+	# AbstractSourceDirectory
+	_set_abstractfs_disable_CLD
+	export ubASD=$(export afs_nofs_write="true" ; "$scriptAbsoluteLocation" _get_base_abstractfs "$@" "$ub_specimen")
+	_set_abstractfs_disable_CLD
+	export ubASD_name=$(basename $ubASD)
+	
+	# Should never be reached. Also, undesirable default.
+	[[ "$ubASD_name" == "" ]] && export ubASD_name=project
+	
+	
+	# No known production use.
+	export ubADD_CLD_none_sub=""
+	export ubADD_PRJ_none_sub=""
+	export ubASD_CLD_none_sub="$ubADD_CLD_none_sub"
+	export ubASD_CLD_none="$ubASD"
+	export ubASD_PRJ_none=""
+	export ubASD_PRJ_none="$ubASD""$ubASD_PRJ_none"
+	
+	# ApplicationSourceDirectory-ConfigurationLookupDirectory
+	# Project directory is *source* directory.
+	# ConfigurationLookupDirectory is *neighbor*, using absolute path *outside* abstractfs translation.
+	# CAUTION: Not compatible with applications requiring all paths translated by abstractfs.
+	# CAUTION: Invalid to combine "$ubADD" with "$ubADD_CLD_independent_sub" .
+	export ubADD_CLD_independent_sub=/../"$ubASD_name".cld
+	export ubADD_PRJ_independent_sub=""
+	export ubASD_CLD_independent_sub="$ubADD_CLD_independent_sub"
+	export ubASD_CLD_independent="$ubASD""$ubASD_CLD_independent_sub"
+	export ubASD_PRJ_independent_sub=""
+	export ubASD_PRJ_independent="$ubASD""$ubASD_PRJ_independent_sub"
+	
+	# ConfigurationLookupDirectory is *neighbor*, next to project directory, in *shared* abstractfs directory.
+	# DANGER: Strongly discouraged. May break use of "project.afs" with alternative layouts and vice versa.
+	export ubADD_CLD_shared_sub=/"$ubASD_name".cld
+	export ubADD_PRJ_shared_sub=/"$ubASD_name"
+	export ubASD_CLD_shared_sub=/.."$ubADD_CLD_shared_sub"
+	export ubASD_CLD_shared="$ubASD""$ubASD_CLD_shared_sub"
+	export ubASD_PRJ_shared_sub=""
+	export ubASD_PRJ_shared="$ubASD""$ubASD_PRJ_shared_sub"
+	
+	# Internal '_export' folder instead of neighboring ConfigurationLookupDirectory .
+	export ubADD_CLD_export_sub=/_export/afscld
+	export ubADD_PRJ_export_sub=""
+	export ubASD_CLD_export_sub="$ubADD_CLD_export_sub"
+	export ubASD_CLD_export="$ubASD""$ubASD_CLD_export_sub"
+	export ubASD_PRJ_export_sub="$ubASD_CLD_export_sub"
+	export ubASD_PRJ_export="$ubASD"
+}
+
+_set_abstractfs_enable_CLD() {
+	export ubAbstractFS_enable_CLD='true'
+}
+
+_set_abstractfs_disable_CLD() {
+	export ubAbstractFS_enable_CLD='false'
+	
+	# No known production use.
+	export ubAbstractFS_enable_CLDnone='false'
+	export ubAbstractFS_enable_CLDindependent='false'
+	export ubAbstractFS_enable_CLDshared='false'
+	export ubAbstractFS_enable_CLDexport='false'
+}
+
+_prepare_abstractfs_appdir() {
+	mkdir -p "$ubASD"
+	mkdir -p "$ubASD_CLD"
+	#_set_abstractfs_disable_CLD
+	export ubADD=$(export afs_nofs="true" ; "$scriptAbsoluteLocation" _get_abstractfs "$@" "$ub_specimen")
+	#_set_abstractfs_disable_CLD
+}
+
+
+
+
+
+
+
+
+
+
+
+_probe_prepare_abstractfs_appdir_AbstractSourceDirectory() {
+	_messagePlain_nominal '_probe_prepare_abstractfs_appdir_AbstractSourceDirectory'
+	_messagePlain_probe_var ubASD
+	_messagePlain_probe_var ubASD_name
+	
+	_messagePlain_probe_var ubASD_CLD_none_sub
+	_messagePlain_probe_var ubASD_CLD_none
+	
+	_messagePlain_probe_var ubASD_CLD_independent_sub
+	_messagePlain_probe_var ubASD_CLD_independent
+	
+	_messagePlain_probe_var ubASD_CLD_shared_sub
+	_messagePlain_probe_var ubASD_CLD_shared
+	
+	_messagePlain_probe_var ubASD_CLD_export_sub
+	_messagePlain_probe_var ubASD_CLD_export
+}
+
+_probe_prepare_abstractfs_appdir_AbstractSourceDirectory_prior() {
+	_messagePlain_nominal '_probe_prepare_abstractfs_appdir_AbstractSourceDirectory_prior'
+	_messagePlain_probe_var ubASD
+	_messagePlain_probe_var ubASD_PRJ
+	_messagePlain_probe_var ubASD_CLD
+}
+
+_probe_prepare_abstractfs_appdir_post() {
+	_messagePlain_nominal '_probe_prepare_abstractfs_appdir_post'
+	_messagePlain_probe_var ubADD
+	#_messagePlain_probe_var ubADD_PRJ
+	#_messagePlain_probe_var ubADD_CLD
+	_messagePlain_probe_var ubAFS_PRJ
+	_messagePlain_probe_var ubAFS_CLD
+}
+
+
+
+_probe_prepare_abstractfs_appdir() {
+	_probe_prepare_abstractfs_appdir_AbstractSourceDirectory
+	_probe_prepare_abstractfs_appdir_AbstractSourceDirectory_prior
+	_probe_prepare_abstractfs_appdir_post
+}
+
+
 _reset_abstractfs() {
 	export abstractfs=
 	export abstractfs_base=
 	export abstractfs_name=
 	export abstractfs_puid=
 	export abstractfs_projectafs=
+	export abstractfs_projectafs_dir=
 }
 
 _prohibit_rmlink_abstractfs() {
@@ -6935,8 +8283,13 @@ _set_share_abstractfs_reset() {
 _set_share_abstractfs() {
 	_set_share_abstractfs_reset
 	
+	# ATTENTION: Using absolute folder, may preserve apparent parent directory name at the expense of reducing likelihood of 8.3 compatibility.
+	#./ubiquitous_bash.sh _abstractfs ls -lad ./.
+	#/dev/shm/uk4u/randomid/.
+	#/dev/shm/uk4u/randomid/ubiquitous_bash
 	export sharedHostProjectDir="$abstractfs_base"
 	#export sharedHostProjectDir=$(_getAbsoluteFolder "$abstractfs_base")
+	
 	export sharedGuestProjectDir="$abstractfs"
 	
 	#Blank default. Resolves to lowest directory shared by "$PWD" and "$@" .
@@ -6973,6 +8326,7 @@ _findProjectAFS_procedure() {
 	if [[ -e "./project.afs" ]]
 	then
 		_getAbsoluteLocation "./project.afs"
+		export abstractfs_projectafs_dir=$(_getAbsoluteFolder "./project.afs")
 		return 0
 	fi
 	
@@ -7008,7 +8362,7 @@ _write_projectAFS() {
 	testAbstractfsBase="$abstractfs_base"
 	[[ "$1" != "" ]] && testAbstractfsBase=$(_getAbsoluteLocation "$1")
 	
-	( [[ "$nofs" == "true" ]] || [[ "$afs_nofs" == "true" ]] ) && return 0
+	( [[ "$nofs" == "true" ]] || [[ "$afs_nofs" == "true" ]] || [[ "$nofs_write" == "true" ]] || [[ "$afs_nofs_write" == "true" ]] ) && return 0
 	_projectAFS_here > "$testAbstractfsBase"/project.afs
 	chmod u+x "$testAbstractfsBase"/project.afs
 }
@@ -7161,6 +8515,8 @@ _test_fakehome() {
 	_getDep mountpoint
 	
 	_getDep rsync
+	
+	_wantGetDep dbus-run-session
 }
 
 #Example. Run similar code under "core.sh" before calling "_fakeHome", "_install_fakeHome", or similar, to set a specific type/location for fakeHome environment - global, instanced, or otherwise.
@@ -7263,7 +8619,8 @@ _umountRAM_fakeHome() {
 }
 
 _begin_fakeHome() {
-	#Recursive fakeHome prohibited. Instead, start new script session, with new sessionid, and keepFakeHome=false. Do not workaround without a clear understanding why this may endanger your application.
+	# WARNING: Recursive fakeHome prohibited. Instead, start new script session, with new sessionid, and keepFakeHome=false. Do not workaround without a clear understanding why this may endanger your application.
+	_resetFakeHomeEnv
 	[[ "$setFakeHome" == "true" ]] && return 1
 	#_resetFakeHomeEnv_nokeep
 	
@@ -7291,6 +8648,7 @@ _begin_fakeHome() {
 #keepFakeHome
 	#default: true
 	#"true" || "false"
+# ATTENTION: WARNING: Do not remove or modify functionality of GUI workarounds without extensive testing!
 _fakeHome() {
 	_begin_fakeHome "$@"
 	local fakeHomeExitStatus
@@ -7300,11 +8658,28 @@ _fakeHome() {
 		export _JAVA_OPTIONS=-Duser.home="$HOME"' '"$_JAVA_OPTIONS"
 	fi
 	
-	env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" sessionid="$sessionid" scriptAbsoluteFolder="$scriptAbsoluteFolder" realSessionID="$realSessionID" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder" dbus-run-session "$@"
-	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" dbus-run-session "$@"
-	#dbus-run-session "$@"
-	#"$@"
-	#. "$@"
+	# WARNING: Obviously less reliable than directly stating variable assignments.
+	local fakeHomeENVvars
+	
+	fakeHomeENVvars+=(DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP="$XDG_SESSION_DESKTOP" XDG_CURRENT_DESKTOP="$XDG_SESSION_DESKTOP")
+	fakeHomeENVvars+=(realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome")
+	fakeHomeENVvars+=(TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}")
+	[[ "$ub_fakeHome_dropPWD" != 'true' ]] && fakeHomeENVvars+=(PWD="$PWD")
+	fakeHomeENVvars+=(_JAVA_OPTIONS="${_JAVA_OPTIONS}")
+	fakeHomeENVvars+=(scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder")
+	fakeHomeENVvars+=(sessionid="$sessionid" realSessionID="$realSessionID" )
+	
+	if type dbus-run-session > /dev/null 2>&1
+	then
+		fakeHomeENVvars+=(dbus-run-session)
+	fi
+	
+	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" sessionid="$sessionid" scriptAbsoluteFolder="$scriptAbsoluteFolder" realSessionID="$realSessionID" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder" dbus-run-session "$@"
+	##env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" dbus-run-session "$@"
+	##dbus-run-session "$@"
+	##"$@"
+	##. "$@"
+	env -i "${fakeHomeENVvars[@]}" "$@"
 	fakeHomeExitStatus=$?
 	
 	#_unmakeFakeHome > /dev/null 2>&1
@@ -7315,6 +8690,7 @@ _fakeHome() {
 }
 
 #Do NOT keep parent session under fakeHome environment. Do NOT regain parent session if "~/.ubcore/.ubcorerc" is imported (typically upon shell launch).
+# ATTENTION: WARNING: Do not remove or modify functionality of GUI workarounds without extensive testing!
 _fakeHome_specific() {
 	_begin_fakeHome "$@"
 	local fakeHomeExitStatus
@@ -7324,11 +8700,28 @@ _fakeHome_specific() {
 		export _JAVA_OPTIONS=-Duser.home="$HOME"' '"$_JAVA_OPTIONS"
 	fi
 	
-	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder" dbus-run-session "$@"
-	env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}dbus-run-session "$@"
-	#dbus-run-session "$@"
-	#"$@"
-	#. "$@"
+	# WARNING: Obviously less reliable than directly stating variable assignments.
+	local fakeHomeENVvars
+	
+	fakeHomeENVvars+=(DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP="$XDG_SESSION_DESKTOP" XDG_CURRENT_DESKTOP="$XDG_SESSION_DESKTOP")
+	fakeHomeENVvars+=(realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome")
+	fakeHomeENVvars+=(TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}")
+	[[ "$ub_fakeHome_dropPWD" != 'true' ]] && fakeHomeENVvars+=(PWD="$PWD")
+	fakeHomeENVvars+=(_JAVA_OPTIONS="${_JAVA_OPTIONS}")
+	#fakeHomeENVvars+=(scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder"realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder")
+	#fakeHomeENVvars+=(sessionid="$sessionid" realSessionID="$realSessionID" )
+	
+	if type dbus-run-session > /dev/null 2>&1
+	then
+		fakeHomeENVvars+=(dbus-run-session)
+	fi
+	
+	##env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder" dbus-run-session "$@"
+	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}dbus-run-session "$@"
+	##dbus-run-session "$@"
+	##"$@"
+	##. "$@"
+	env -i "${fakeHomeENVvars[@]}" "$@"
 	fakeHomeExitStatus=$?
 	
 	#_unmakeFakeHome > /dev/null 2>&1
@@ -7349,8 +8742,8 @@ _fakeHome_embedded() {
 		export _JAVA_OPTIONS=-Duser.home="$HOME"' '"$_JAVA_OPTIONS"
 	fi
 	
-	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder" dbus-run-session "$@"
-	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" dbus-run-session "$@"
+	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder" dbus-run-session "$@"
+	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" dbus-run-session "$@"
 	#dbus-run-session "$@"
 	#"$@"
 	. "$@"
@@ -7505,6 +8898,188 @@ _test_image() {
 	#_getDep partprobe
 }
 
+
+# ATTENTION: WARNING: TODO: UNCOMMENT SAFE/EMPTY CONFIGURATION VARIABLES HERE IF NEEDED TO RESET ENVIRONMENT!
+
+
+###
+
+# ATTENTION: Override with 'ops', env, or similar.
+# DANGER: NOT respected (and possibly not needed) by some virtualization backends.
+# DANGER: Root image/device/partiton must be correct!
+# WARNING: Root/Image/Device override implies 'true' "ubVirtImageLocal" .
+
+# WARNING: Implies blank "ubVirtImagePartition" .
+#export ubVirtImageIsRootPartition='true'
+
+#export ubVirtImageIsDevice='true'
+#export ubVirtImageOverride='/dev/disk/by-id/identifier-part'
+
+# ATTENTION: Path pointing to full disk device or image, including partition table, for full booting.
+# Will take precedence over "ubVirtImageOverride" with virtualization backends capable of full booting.
+# vbox , qemu
+#export ubVirtDiskOverride='/dev/disk/by-id/identifier'
+
+
+# ATTENTION: Explicitly override platform. Not all backends support all platforms.
+# chroot , qemu
+# x64-bios , raspbian , x64-efi
+#export ubVirtPlatformOverride='x64-bios'
+
+###
+
+
+
+###
+
+# ATTENTION: Override with 'ops' or similar.
+# WARNING: Do not override unnecessarily. Default rules are expected to accommodate typical requirements.
+
+# WARNING: Only applies to imagedev (text) loopback device.
+# x64 bios , raspbian , x64 efi (respectively)
+#export ubVirtImagePartition='p1'
+#export ubVirtImagePartition='p2'
+#export ubVirtImagePartition='p3'
+
+###
+
+
+
+# ATTENTION: Override with 'ops' or similar.
+# WARNING: Prefer to avoid override in favor of overriding other relevant variables or functions.
+# DANGER: Required for safety mechanisms which may also be used by some other virtualization backends!
+# WARNING: Dependency: Should run _loopImage_imagefilename .
+# "$1" == imagedev
+# "$2" == default (if any)
+_determine_rawFileRootPartition() {
+	# DANGER: REQUIRES image/device including ONLY root partition!
+	if [[ "$ubVirtImageIsRootPartition" == 'true' ]]
+	then
+		export ubVirtImagePartition=''
+		echo "$1"
+		return 0
+	fi
+	
+	if [[ "$ubVirtImagePartition" != "" ]]
+	then
+		echo "$1""$ubVirtImagePartition"
+		return 0
+	fi
+	
+	if [[ "$2" != "" ]]
+	then
+		export ubVirtImagePartition="$2"
+		echo "$1""$2"
+		return 0
+	fi
+	
+	#Platform defaults.
+	export ubVirtImagePartition=""
+	[[ "$ubVirtPlatform" == "x64-bios" ]] && export ubVirtImagePartition=p1
+	[[ "$ubVirtPlatform" == "x64-efi" ]] && export ubVirtImagePartition=p3
+	[[ "$ubVirtPlatform" == "raspbian" ]] && export ubVirtImagePartition=p2
+	
+	#Default.
+	# DANGER: Do NOT set blank.
+	[[ "$ubVirtImagePartition" == "" ]] && export ubVirtImagePartition=p1
+	
+	echo "$1""$ubVirtImagePartition"
+	
+	return 0
+}
+
+
+
+# ATTENTION: Override with 'ops' or similar.
+# WARNING: Uncommenting will cause losetup not to be used for 'vm.img' and similar even if symlinked to '/dev'. This will break 'ubVirtImagePartition' .
+# DANGER: Unnecessarily linking 'vm.img' or similar to device file strongly discouraged. May allow some virtualization backends to attempt to perform unsupported operations (ie. rm -f) on device file.
+_detect_deviceAsVirtImage_symlinks() {
+	#[[ -h "$scriptLocal"/vm.img ]] && readlink "$scriptLocal"/vm.img | grep ^\/dev\/\.\* > /dev/null 2>&1 && return 0
+	#[[ -h "$scriptLocal"/vm-x64.img ]] && readlink "$scriptLocal"/vm-x64.img | grep ^\/dev\/\.\* > /dev/null 2>&1 && return 0
+	#[[ -h "$scriptLocal"/vm-raspbian.img ]] && readlink "$scriptLocal"/vm-raspbian.img | grep ^\/dev\/\.\* > /dev/null 2>&1 && return 0
+	
+	# WARNING: Symlinks to locations outside a home subfolder (including relative symlinks) will be presumed to be device files if uncommented.
+	#[[ -h "$scriptLocal"/vm.img ]] && ! readlink "$scriptLocal"/vm.img | grep ^\/home\/\.\* > /dev/null 2>&1 && return 0
+	#[[ -h "$scriptLocal"/vm-x64.img ]] && ! readlink "$scriptLocal"/vm-x64.img | grep ^\/home\/\.\* > /dev/null 2>&1 && return 0
+	#[[ -h "$scriptLocal"/vm-raspbian.img ]] && ! readlink "$scriptLocal"/vm-raspbian.img | grep ^\/home\/\.\* > /dev/null 2>&1 && return 0
+	
+	return 1
+}
+
+
+# DANGER: Required for safety mechanisms which may also be used by some other virtualization backends!
+# DANGER: Multiple 'vm.img' variants (eg. 'vm-x64.img') available simultaneously is NOT deliberately supported and NOT safe!
+# DANGER: Multiple symlinks or other conditions may confuse this safety mechanism. Only intended to prevent casual misuse.
+# image
+# chroot
+# vbox
+# qemu
+# "$1" == imagefilename
+_detect_deviceAsVirtImage() {
+	[[ "$ubVirtImageIsDevice" != "" ]] && return 0
+	[[ "$ubVirtImageOverride" == '/dev/'* ]] && return 0
+	
+	[[ "$1" == '/dev/'* ]] && return 0
+	
+	
+	[[ "$1" != "" ]] && [[ -h "$1" ]] && ! readlink "$1" | grep ^\/dev\/\.\* > /dev/null 2>&1 && return 1
+	[[ "$1" != "" ]] && [[ -e "$1" ]] && return 1
+	_detect_deviceAsVirtImage_symlinks "$1" && return 0
+	
+	return 1
+}
+
+# ATTENTION: Override with 'ops' or similar.
+# WARNING: Prefer to avoid override in favor of overriding other relevant variables or functions.
+# DANGER: Required for safety mechanisms which may also be used by some other virtualization backends!
+# "$1" == imagedev
+# "$2" == imagepart
+_determine_rawIsRootPartition() {
+	[[ "$ubVirtImageIsRootPartition" == 'true' ]] && return 0
+	[[ "$1" == "$2" ]] && return 0
+	return 1
+}
+
+
+# DANGER: Required for safety mechanisms which may also be used by some other virtualization backends!
+# DANGER: Exact values of 'ubVirtPlatform' and other variables may be required by other virtualization backends!
+_loopImage_imagefilename() {
+	local current_imagefilename
+	[[ -e "$scriptLocal"/vm-raspbian.img ]] && current_imagefilename="$scriptLocal"/vm-raspbian.img && export ubVirtPlatform=raspbian
+	[[ -e "$scriptLocal"/vm-x64.img ]] && current_imagefilename="$scriptLocal"/vm-x64.img && export ubVirtPlatform=x64-bios
+	[[ -e "$scriptLocal"/vm.img ]] && current_imagefilename="$scriptLocal"/vm.img && export ubVirtPlatform=x64-bios
+	[[ "$ubVirtImageOverride" != "" ]] && current_imagefilename="$ubVirtImageOverride"
+	
+	
+	[[ "$ubVirtPlatform" == "" ]] && export ubVirtPlatform=x64-bios
+	[[ "$ubVirtPlatformOverride" != "" ]] && export ubVirtPlatform="$ubVirtPlatformOverride"
+	
+	echo "$current_imagefilename"
+}
+
+
+# "$1" == imagefilename
+# "$2" == imagedev (text)
+_loopImage_procedure_losetup() {
+	if _detect_deviceAsVirtImage "$1"
+	then
+		! [[ -e "$1" ]] || _stop 1
+		echo "$1" > "$safeTmp"/imagedev
+		sudo -n partprobe > /dev/null 2>&1
+		
+		cp -n "$safeTmp"/imagedev "$2" > /dev/null 2>&1 || _stop 1
+		return 0
+	fi
+	
+	sudo -n losetup -f -P --show "$1" > "$safeTmp"/imagedev 2> /dev/null || _stop 1
+	sudo -n partprobe > /dev/null 2>&1
+	
+	cp -n "$safeTmp"/imagedev "$2" > /dev/null 2>&1 || _stop 1
+	return 0
+}
+
+# DANGER: Optional parameter intended only for virtualization backends using only loopback devices without filesystem mounting (vbox) .
+# "$1" == imagedev (text)
 _loopImage_sequence() {
 	_mustGetSudo
 	
@@ -7512,96 +9087,247 @@ _loopImage_sequence() {
 	
 	mkdir -p "$globalVirtFS"
 	
-	[[ -e "$scriptLocal"/imagedev ]] && _stop 1
+	local current_imagedev_text
+	current_imagedev_text="$1"
+	[[ "$current_imagedev_text" == "" ]] && current_imagedev_text="$scriptLocal"/imagedev
 	
-	local imagefilename
-	[[ -e "$scriptLocal"/vm-raspbian.img ]] && imagefilename="$scriptLocal"/vm-raspbian.img
-	#[[ -e "$scriptLocal"/vm-x64.img ]] && imagefilename="$scriptLocal"/vm-x64.img
-	[[ -e "$scriptLocal"/vm.img ]] && imagefilename="$scriptLocal"/vm.img
+	[[ -e "$current_imagedev_text" ]] && _stop 1
 	
-	sudo -n losetup -f -P --show "$imagefilename" > "$safeTmp"/imagedev 2> /dev/null || _stop 1
-	sudo -n partprobe > /dev/null 2>&1
+	local current_imagefilename
+	current_imagefilename=$(_loopImage_imagefilename)
 	
-	cp -n "$safeTmp"/imagedev "$scriptLocal"/imagedev > /dev/null 2>&1 || _stop 1
+	_loopImage_procedure_losetup "$current_imagefilename" "$current_imagedev_text"
 	
 	_stop 0
 }
 
 _loopImage() {
-	"$scriptAbsoluteLocation" _loopImage_sequence
+	if "$scriptAbsoluteLocation" _loopImage_sequence "$@"
+	then
+		return 0
+	fi
+	return 1
 }
 
+# DANGER: Only use with backends supporting full disk booting!
+# "$1" == imagedev (text)
+_loopFull_procedure() {
+	if [[ "$ubVirtDiskOverride" == "" ]]
+	then
+		! _loopImage "$1" && _stop 1
+	else
+		! _loopImage_procedure_losetup "$ubVirtDiskOverride" "$1" && _stop 1
+	fi
+	return 0
+}
+
+# "$1" == imagedev (text)
+_loopFull_sequence() {
+	_start
+	
+	if ! _loopFull_procedure "$@"
+	then
+		_stop 1
+	fi
+	
+	_stop 0
+}
+
+# "$1" == imagedev (text)
+_loopFull() {
+	if "$scriptAbsoluteLocation" _loopFull_sequence "$@"
+	then
+		return 0
+	fi
+	
+	# Typically requires "_stop 1" .
+	return 1
+}
+
+
+# ATTENTION: Override with 'ops' or similar.
+# DANGER: Allowing types other than 'ext4' (eg. fat), may allow mounting of filesystems other than an UNIX-like userspace root.
+_mountImageFS_procedure_blkid_fstype() {
+	! [[ "$1" == "ext4" ]] && _stop 1
+	return 0
+}
+
+# "$1" == imagedev
+# "$2" == imagepart
+# "$3" == dirVirtFS (RESERVED)
+_mountImageFS_procedure_blkid() {
+	local loopdevfs
+	
+	# DANGER: Must ignore/reject 'PTTYPE' field if given.
+	#if _determine_rawIsRootPartition "$1" "$2"
+	#then
+		#loopdevfs=$(eval $(sudo -n blkid "$2" | tr -dc 'a-zA-Z0-9\=\"\ \:\/\-' | awk ' { print $4 } '); echo $TYPE)
+	#else
+		#loopdevfs=$(eval $(sudo -n blkid "$2" | tr -dc 'a-zA-Z0-9\=\"\ \:\/\-' | awk ' { print $3 } '); echo $TYPE)
+	#fi
+	loopdevfs=$(sudo -n blkid -s TYPE -o value "$2" | tr -dc 'a-zA-Z0-9')
+	
+	! _mountImageFS_procedure_blkid_fstype "$loopdevfs" && _stop 1
+	
+	return 0
+}
+
+# "$1" == destinationDir (default: "$globalVirtFS")
 _mountImageFS_sequence() {
 	_mustGetSudo
 	
 	_start
 	
+	local currentDestinationDir
+	currentDestinationDir="$1"
+	[[ "$currentDestinationDir" == "" ]] && currentDestinationDir="$globalVirtFS"
+	
 	mkdir -p "$globalVirtFS"
 	
-	"$scriptAbsoluteLocation" _checkForMounts "$globalVirtFS" && _stop 1
+	"$scriptAbsoluteLocation" _checkForMounts "$currentDestinationDir" && _stop 1
 	
-	local imagedev
-	imagedev=$(cat "$scriptLocal"/imagedev)
+	# Include platform determination code for correct determination of partition and mounts.
+	_loopImage_imagefilename > /dev/null 2>&1
 	
-	local imagepart
-	#imagepart="$imagedev"p2
-	imagepart="$imagedev"p1
+	local current_imagedev
+	current_imagedev=$(cat "$scriptLocal"/imagedev)
 	
-	local loopdevfs
-	loopdevfs=$(eval $(sudo -n blkid "$imagepart" | awk ' { print $3 } '); echo $TYPE)
+	local current_imagepart
+	current_imagepart=$(_determine_rawFileRootPartition "$current_imagedev")
+	#current_imagepart=$(_determine_rawFileRootPartition "$current_imagedev" "x64-bios")
 	
-	! [[ "$loopdevfs" == "ext4" ]] && _stop 1
 	
-	sudo -n mount "$imagepart" "$globalVirtFS" || _stop 1
+	_mountImageFS_procedure_blkid "$current_imagedev" "$current_imagepart" "$currentDestinationDir" || _stop 1
 	
-	mountpoint "$globalVirtFS" > /dev/null 2>&1 || _stop 1
+	
+	sudo -n mount "$current_imagepart" "$currentDestinationDir" || _stop 1
+	
+	mountpoint "$currentDestinationDir" > /dev/null 2>&1 || _stop 1
 	
 	_stop 0
 }
 
 _mountImageFS() {
-	"$scriptAbsoluteLocation" _mountImageFS_sequence
+	if "$scriptAbsoluteLocation" _mountImageFS_sequence
+	then
+		return 0
+	fi
+	return 1
 }
 
 _mountImage() {
-	"$scriptAbsoluteLocation" _loopImage_sequence 
-	"$scriptAbsoluteLocation" _mountImageFS_sequence
+	# Include platform determination code for correct determination of partition and mounts.
+	_loopImage_imagefilename > /dev/null 2>&1
+	
+	! _loopImage && _stop 1
+	! _mountImageFS "$1" && _stop 1
+	
+	return 0
 }
 
+# "$1" == imagedev
+# "$2" == imagedev (text)
+# "$3" == imagefilename
+_unmountLoop_losetup() {
+	#if _detect_deviceAsVirtImage "$3" || [[ "$1" == '/dev/loop'* ]]
+	if _detect_deviceAsVirtImage "$3"
+	then
+		! [[ -e "$1" ]] || return 1
+		! [[ -e "$2" ]] || return 1
+		! [[ -e "$3" ]] || return 1
+		sudo -n partprobe > /dev/null 2>&1
+		
+		rm -f "$2" || return 1
+		return 0
+	fi
+	
+	# DANGER: Should never happen.
+	[[ "$1" == '/dev/loop'* ]] || return 1
+	
+	# WARNING: Should never happen.
+	[[ -e "$3" ]] || return 1
+	
+	sudo -n losetup -d "$1" > /dev/null 2>&1 || return 1
+	sudo -n partprobe > /dev/null 2>&1
+	
+	rm -f "$2" || return 1
+	return 0
+}
+
+# DANGER: Optional parameter intended only for virtualization backends using only loopback devices without filesystem mounting (vbox) .
+# "$1" == imagedev (text)
 _umountLoop() {
 	_mustGetSudo || return 1
 	
-	local imagedev
-	imagedev=$(cat "$scriptLocal"/imagedev)
+	local current_imagedev_text
+	current_imagedev_text="$1"
+	[[ "$current_imagedev_text" == "" ]] && current_imagedev_text="$scriptLocal"/imagedev
 	
-	sudo -n losetup -d "$imagedev" > /dev/null 2>&1 || return 1
-	sudo -n partprobe > /dev/null 2>&1
+	[[ -e "$current_imagedev_text" ]] || return 1
+	local current_imagedev
+	current_imagedev=$(cat "$current_imagedev_text" 2>/dev/null)
 	
-	rm -f "$scriptLocal"/imagedev || return 1
+	
+	# WARNING: Consistent rules required to select correct imagefilename for both _umountLoop and _loopImage regardless of VM backend or 'ops' overrides.
+	local current_imagefilename
+	current_imagefilename=$(_loopImage_imagefilename)
+	
+	_unmountLoop_losetup "$current_imagedev" "$current_imagedev_text" "$current_imagefilename" || return 1
 	
 	rm -f "$lock_quicktmp" > /dev/null 2>&1
 	
 	return 0
 }
 
-# TODO Duplicates some code from _umountLoop. Test, and remove.
+# DANGER: Only use with backends supporting full disk booting!
+# "$1" == imagedev (text)
+_umountFull_procedure() {
+	if [[ "$ubVirtDiskOverride" == "" ]]
+	then
+		! _umountLoop "$1" && _stop 1
+	else
+		! _unmountLoop_losetup "$ubVirtDiskOverride" "$1" "$ubVirtDiskOverride" && _stop 1
+	fi
+	return 0
+}
+
+_umountFull_sequence() {
+	_start
+	
+	if ! _umountFull_procedure "$@"
+	then
+		_stop 1
+	fi
+	
+	_stop 0
+}
+
+_umountFull() {
+	if "$scriptAbsoluteLocation" _umountFull_sequence "$@"
+	then
+		return 0
+	fi
+	
+	# Typically requires "_stop 1" .
+	return 1
+}
+
+# "$1" == destinationDir (default: "$globalVirtFS")
 _umountImage() {
 	_mustGetSudo || return 1
 	
-	sudo -n umount "$globalVirtFS" > /dev/null 2>&1
+	local currentDestinationDir
+	currentDestinationDir="$1"
+	[[ "$currentDestinationDir" == "" ]] && currentDestinationDir="$globalVirtFS"
+	
+	sudo -n umount "$currentDestinationDir" > /dev/null 2>&1
 	
 	#Uniquely, it is desirable to allow unmounting to proceed a little further if the filesystem was not mounted to begin with. Enables manual intervention.
-	_readyImage "$globalVirtFS" && return 1
 	
-	local imagedev
-	imagedev=$(cat "$scriptLocal"/imagedev)
+	#Filesystem must be unmounted before proceeding.
+	_readyImage "$currentDestinationDir" && return 1
 	
-	sudo -n losetup -d "$imagedev" > /dev/null 2>&1 || return 1
-	sudo -n partprobe > /dev/null 2>&1
-	
-	rm -f "$scriptLocal"/imagedev || return 1
-	
-	rm -f "$lock_quicktmp" > /dev/null 2>&1
+	! _umountLoop && return 1
 	
 	return 0
 }
@@ -7813,7 +9539,7 @@ _createFS_sequence() {
 	imagepart="$imagedev"p1
 	
 	local loopdevfs
-	loopdevfs=$(eval $(sudo -n blkid "$imagepart" | awk ' { print $3 } '); echo $TYPE)
+	loopdevfs=$(sudo -n blkid -s TYPE -o value "$imagepart" | tr -dc 'a-zA-Z0-9')
 	[[ "$loopdevfs" == "ext4" ]] && _stop 1
 	sudo -n mkfs.ext4 "$imagepart" > /dev/null 2>&1 || _stop 1
 	
@@ -7974,6 +9700,60 @@ IF NOT EXIST "X:\" GOTO checkMount
 CZXWXcRMTo8EmM8i4d
 }
 
+
+#Prints "$@" with quotes around every parameter.
+_echoArgsBootdisc_MSW() {
+	
+	#https://stackoverflow.com/questions/1668649/how-to-keep-quotes-in-bash-arguments
+	
+	local currentCommandStringPunctuated
+	local currentCommandStringParameter
+	for currentCommandStringParameter in "$@"; do 
+		
+		# MSW interprets the expression \" and similar differently from UNIX.
+		#currentCommandStringParameter="${currentCommandStringParameter//\\/\\\\}"
+		
+		currentCommandStringPunctuated="$currentCommandStringPunctuated \"${currentCommandStringParameter//\"/\\\"}\""
+	done
+	#_messagePlain_probe "$currentCommandStringPunctuated"
+	
+	#echo -e -n '\E[0;34m '
+	
+	_safeEcho "$currentCommandStringPunctuated"
+	
+	#echo -e -n ' \E[0m'
+	echo
+	
+	return
+}
+
+#Prints "$@" with quotes around every parameter.
+_echoArgsBootdisc_UNIX() {
+	
+	#https://stackoverflow.com/questions/1668649/how-to-keep-quotes-in-bash-arguments
+	
+	local currentCommandStringPunctuated
+	local currentCommandStringParameter
+	for currentCommandStringParameter in "$@"; do 
+		
+		# MSW interprets the expression \" and similar differently from UNIX.
+		currentCommandStringParameter="${currentCommandStringParameter//\\/\\\\}"
+		
+		currentCommandStringPunctuated="$currentCommandStringPunctuated \"${currentCommandStringParameter//\"/\\\"}\""
+	done
+	#_messagePlain_probe "$currentCommandStringPunctuated"
+	
+	#echo -e -n '\E[0;34m '
+	
+	_safeEcho "$currentCommandStringPunctuated"
+	
+	#echo -e -n ' \E[0m'
+	echo
+	
+	return
+}
+
+
 _testVirtBootdisc() {
 	if ! type mkisofs > /dev/null 2>&1 && ! type genisoimage > /dev/null 2>&1
 	then
@@ -8047,8 +9827,10 @@ _createHTG_MSW() {
 	
 	_preCommand_MSW >> "$hostToGuestFiles"/application.bat
 	
-	_safeEcho_newline "${processedArgs[@]}" >> "$hostToGuestFiles"/application.bat
-	 
+	# WARNING: Not fully tested with all plausible inputs. Beware possible misinterpretations of '$' and similar characters.
+	#_safeEcho_newline "${processedArgs[@]}" >> "$hostToGuestFiles"/application.bat
+	_echoArgsBootdisc_MSW "${processedArgs[@]}" >> "$hostToGuestFiles"/application.bat
+	
 	echo ""  >> "$hostToGuestFiles"/application.bat
 	
 	echo -e -n >> "$hostToGuestFiles"/loader.bat
@@ -8103,7 +9885,12 @@ _createHTG_UNIX() {
 	
 	echo '#!/usr/bin/env bash' >> "$hostToGuestFiles"/cmd.sh
 	echo "export localPWD=""$localPWD" >> "$hostToGuestFiles"/cmd.sh
-	_safeEcho_newline "/media/bootdisc/ubiquitous_bash.sh _dropBootdisc ${processedArgs[@]}" >> "$hostToGuestFiles"/cmd.sh
+	
+	# WARNING: Not fully tested with all plausible inputs. Beware possible misinterpretations of '$' and similar characters.
+	#_safeEcho_newline "/media/bootdisc/ubiquitous_bash.sh _dropBootdisc ${processedArgs[@]}" >> "$hostToGuestFiles"/cmd.sh
+	echo -n "/media/bootdisc/ubiquitous_bash.sh _dropBootdisc " >> "$hostToGuestFiles"/cmd.sh
+	_echoArgsBootdisc_UNIX "${processedArgs[@]}" >> "$hostToGuestFiles"/cmd.sh
+	
 }
 
 _commandBootdisc() {
@@ -8372,6 +10159,17 @@ _stopChRoot() {
 	
 }
 
+
+# May override with 'ops.sh' or similar. Future development intended. Currently, creating an image of a physical device is strongly recommended instead.
+_detect_deviceAsChRootImage() {
+	false
+	
+	# TODO: Determine if "$ubVirtImageOverride" or "$scriptLocal" points to a device file (typically under '/dev').
+	# TODO: Should call separate function _detect_deviceAsVirtImage .
+	# DANGER: Functions under 'mountimage.sh' must also respect this.
+}
+
+
 #"$1" == ChRoot Dir
 _mountChRoot() {
 	_mustGetSudo
@@ -8429,6 +10227,8 @@ _mountChRoot() {
 	then
 		echo 'nameserver 2001:4860:4860::8888' | sudo -n tee -a "$absolute1"/etc/resolv.conf > /dev/null 2>&1
 	fi
+	
+	return 0
 }
 
 #"$1" == ChRoot Dir
@@ -8455,8 +10255,8 @@ _umountChRoot() {
 	
 	_wait_umount "$absolute1"/dev
 	
-	_wait_umount "$absolute1" >/dev/null 2>&1
-	
+	# Full umount of chroot directory may be done by standard '_umountImage'.
+	#_wait_umount "$absolute1" >/dev/null 2>&1
 }
 
 _readyChRoot() {
@@ -8495,51 +10295,25 @@ _mountChRoot_image_raspbian() {
 	
 	"$scriptAbsoluteLocation" _checkForMounts "$chrootDir" && _stop 1
 	
-	if sudo -n losetup -f -P --show "$scriptLocal"/vm-raspbian.img > "$safeTmp"/imagedev 2> /dev/null
-	then
-		#Preemptively declare device open to prevent potentially dangerous multiple mount attempts.
-		#Should now be redundant with use of lock_opening .
-		#_createLocked "$lock_open" || _stop 1
-		
-		sudo -n partprobe > /dev/null 2>&1
-		
-		cp -n "$safeTmp"/imagedev "$scriptLocal"/imagedev > /dev/null 2>&1 || _stop 1
-		
-		local chrootimagedev
-		chrootimagedev=$(cat "$safeTmp"/imagedev)
-		
-		local chrootimagepart
-		chrootimagepart="$chrootimagedev"p2
-		
-		#local chrootloopdevfs
-		#chrootloopdevfs=$(eval $(sudo -n blkid "$chrootimagepart" | awk ' { print $3 } '); echo $TYPE)
-		#if [[ "$chrootloopdevfs" == "ext4" ]]
-		
-		if sudo -n blkid "$chrootimagepart" | grep 'ext4' > /dev/null 2>&1
-		then
-			
-			sudo -n mount "$chrootimagepart" "$chrootDir" || _stop 1
-			
-			mountpoint "$chrootDir" > /dev/null 2>&1 || _stop 1
-			
-			_mountChRoot "$chrootDir"
-			
-			_readyChRoot "$chrootDir" || _stop 1
-			
-			sudo -n cp /usr/bin/qemu-arm-static "$chrootDir"/usr/bin/
-			sudo -n cp /usr/bin/qemu-armeb-static "$chrootDir"/usr/bin/
-			
-			sudo -n cp -n "$chrootDir"/etc/ld.so.preload "$chrootDir"/etc/ld.so.preload.orig
-			echo | sudo -n tee "$chrootDir"/etc/ld.so.preload > /dev/null 2>&1
-			
-			! _mountChRoot_image_raspbian_prog "$chrootimagedev" && _stop 1
-			
-			_stop 0
-		fi
-		
-	fi
 	
-	_stop 1
+	! _mountImage "$chrootDir" && _stop 1
+	
+	
+	
+	_mountChRoot "$chrootDir"
+	
+	_readyChRoot "$chrootDir" || _stop 1
+	
+	sudo -n cp /usr/bin/qemu-arm-static "$chrootDir"/usr/bin/
+	sudo -n cp /usr/bin/qemu-armeb-static "$chrootDir"/usr/bin/
+	
+	sudo -n cp -n "$chrootDir"/etc/ld.so.preload "$chrootDir"/etc/ld.so.preload.orig
+	echo | sudo -n tee "$chrootDir"/etc/ld.so.preload > /dev/null 2>&1
+	
+	! _mountChRoot_image_raspbian_prog && _stop 1
+	
+	
+	return 0
 }
 
 _umountChRoot_directory_raspbian() {
@@ -8562,49 +10336,16 @@ _mountChRoot_image_x64() {
 	
 	"$scriptAbsoluteLocation" _checkForMounts "$chrootDir" && _stop 1
 	
-	local chrootvmimage
-	[[ -e "$scriptLocal"/vm-x64.img ]] && chrootvmimage="$scriptLocal"/vm-x64.img
-	[[ -e "$scriptLocal"/vm.img ]] && chrootvmimage="$scriptLocal"/vm.img
 	
-	[[ "$ubVirtImageOverride" != '' ]] && chrootvmimage="$ubVirtImageOverride"
+	! _mountImage "$chrootDir" && _stop 1
 	
 	
-	if ! _detect_deviceAsVirtImage
-	then
-		sudo -n losetup -f -P --show "$chrootvmimage" > "$safeTmp"/imagedev 2> /dev/null || _stop 1
-		sudo -n partprobe > /dev/null 2>&1
-		
-		cp -n "$safeTmp"/imagedev "$scriptLocal"/imagedev > /dev/null 2>&1 || _stop 1
-		
-		local chrootimagedev
-		chrootimagedev=$(cat "$safeTmp"/imagedev)
-		
-		local chrootimagepart
-		#chrootimagepart="$chrootimagedev"p2
-		chrootimagepart="$chrootimagedev"p1
-		
-	fi
-	
-	# DANGER: REQUIRES image including only root partition!
-	[[ "$ubVirtImageIsRootPartition" == 'true' ]] && chrootimagepart="$chrootimagedev"
-	
-	local chrootloopdevfs
-	chrootloopdevfs=$(eval $(sudo -n blkid "$chrootimagepart" | awk ' { print $3 } '); echo $TYPE)
-	
-	# DANGER: REQUIRES image including only root partition!
-	[[ "$ubVirtImageIsRootPartition" == 'true' ]] && chrootloopdevfs=$(eval $(sudo -n blkid "$chrootimagepart" | awk ' { print $4 } '); echo $TYPE)
-	
-	! [[ "$chrootloopdevfs" == "ext4" ]] && _stop 1
-	
-	sudo -n mount "$chrootimagepart" "$chrootDir" || _stop 1
-	
-	mountpoint "$chrootDir" > /dev/null 2>&1 || _stop 1
 	
 	_mountChRoot "$chrootDir"
 	
 	_readyChRoot "$chrootDir" || _stop 1
 	
-	_stop 0
+	return 0
 }
 
 _umountChRoot_directory_x64() {
@@ -8616,42 +10357,58 @@ _umountChRoot_directory_x64() {
 _mountChRoot_image() {
 	_tryExecFull _hook_systemd_shutdown_action "_closeChRoot_emergency" "$sessionid"
 	
-	if [[ -e "$scriptLocal"/vm-raspbian.img ]]
+	# Include platform determination code for correct determination of partition and mounts.
+	_loopImage_imagefilename > /dev/null 2>&1
+	
+	if [[ "$ubVirtPlatform" == "raspbian" ]]
 	then
-		"$scriptAbsoluteLocation" _mountChRoot_image_raspbian
+		_mountChRoot_image_raspbian
 		return "$?"
 	fi
 	
-	if [[ -e "$scriptLocal"/vm-x64.img ]]
+	if [[ "$ubVirtPlatform" == "x64"* ]]
 	then
-		"$scriptAbsoluteLocation" _mountChRoot_image_x64
+		_mountChRoot_image_x64
 		return "$?"
 	fi
 	
-	#Default "vm.img" will be operated on as x64 image.
+	#Default x64 .
 	"$scriptAbsoluteLocation" _mountChRoot_image_x64
 	return "$?"
 }
 
-_umountChRoot_directory() {
-	if [[ -e "$scriptLocal"/vm-raspbian.img ]]
+_umountChRoot_directory_platform() {
+	# Include platform determination code for correct determination of partition and mounts.
+	_loopImage_imagefilename > /dev/null 2>&1
+	
+	if [[ "$ubVirtPlatform" == "raspbian" ]]
 	then
-		"$scriptAbsoluteLocation" _umountChRoot_directory_raspbian || return "$?"
+		"$scriptAbsoluteLocation" _umountChRoot_directory_raspbian
+		return "$?"
 	fi
 	
-	if [[ -e "$scriptLocal"/vm-x64.img ]]
+	if [[ "$ubVirtPlatform" == "x64"* ]]
 	then
-		"$scriptAbsoluteLocation" _umountChRoot_directory_x64 || return "$?"
+		"$scriptAbsoluteLocation" _umountChRoot_directory_x64
+		return "$?"
 	fi
 	
 	#Default "vm.img" will be operated on as x64 image.
-	"$scriptAbsoluteLocation" _umountChRoot_directory_x64 || return "$?"
+	"$scriptAbsoluteLocation" _umountChRoot_directory_x64
+	return "$?"
+}
+
+_umountChRoot_directory() {
+	! _umountChRoot_directory_platform && return 1
 	
 	_stopChRoot "$1"
 	_umountChRoot "$1"
-	mountpoint "$1" > /dev/null 2>&1 && sudo -n umount "$1"
 	
-	"$scriptAbsoluteLocation" _checkForMounts "$1" && return 1
+	# Full umount of chroot directory may be done by standard '_umountImage'.
+	#mountpoint "$1" > /dev/null 2>&1 && sudo -n umount "$1"
+	#"$scriptAbsoluteLocation" _checkForMounts "$1" && return 1
+	
+	return 0
 }
 
 # ATTENTION: Override with "core.sh" or similar.
@@ -8663,21 +10420,16 @@ _umountChRoot_image_prog() {
 _umountChRoot_image() {
 	_mustGetSudo || return 1
 	
-	_umountChRoot_directory "$chrootDir" && return 1
+	! _umountChRoot_directory "$chrootDir" && return 1
 	
 	! _umountChRoot_image_prog && return 1
 	
-	[[ -d "$globalVirtFS"/../boot ]] && mountpoint "$globalVirtFS"/../boot >/dev/null 2>&1 && sudo -n umount "$globalVirtFS"/../boot
+	[[ -d "$globalVirtFS"/../boot ]] && mountpoint "$globalVirtFS"/../boot >/dev/null 2>&1 && sudo -n umount "$globalVirtFS"/../boot >/dev/null 2>&1
 	
-	local chrootimagedev
-	chrootimagedev=$(cat "$scriptLocal"/imagedev)
 	
-	! _detect_deviceAsVirtImage && ! sudo -n losetup -d "$chrootimagedev" > /dev/null 2>&1 && return 1
-	sudo -n partprobe > /dev/null 2>&1
+	_umountImage "$chrootDir"
 	
-	! _detect_deviceAsVirtImage && ! rm -f "$scriptLocal"/imagedev && return 1
 	
-	rm -f "$lock_quicktmp" > /dev/null 2>&1
 	
 	rm -f "$permaLog"/gsysd.log > /dev/null 2>&1
 	
@@ -8812,7 +10564,7 @@ _chroot() {
 	
 	local chrootExitStatus
 	
-	sudo -n env -i HOME="/root" TERM="${TERM}" SHELL="/bin/bash" PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" DISPLAY="$DISPLAY" XSOCK="$XSOCK" XAUTH="$XAUTH" localPWD="$localPWD" hostArch=$(uname -m) virtSharedUser="$virtGuestUser" $(sudo -n which chroot) "$chrootDir" "$@"
+	sudo -n env -i HOME="/root" TERM="${TERM}" SHELL="/bin/bash" PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" DISPLAY="$DISPLAY" XSOCK="$XSOCK" XAUTH="$XAUTH" localPWD="$localPWD" hostArch=$(uname -m) virtSharedUser="$virtGuestUser" $(sudo -n bash -c "type -p chroot") "$chrootDir" "$@"
 	
 	chrootExitStatus="$?"
 	
@@ -9164,7 +10916,7 @@ _dropChRoot() {
 	# Change to localPWD or home.
 	cd "$localPWD"
 	
-	"$scriptAbsoluteLocation" _gosuExecVirt cp -r /etc/skel/. "$virtGuestHomeDrop"
+	"$scriptAbsoluteLocation" _gosuExecVirt cp -r /etc/skel/. "$virtGuestHomeDrop" > /dev/null 2>&1
 	
 	"$scriptAbsoluteLocation" _gosuExecVirt "$scriptAbsoluteLocation" _setupUbiquitous_nonet > /dev/null 2>&1
 	
@@ -9215,13 +10967,16 @@ _testQEMU_x64-raspi() {
 	
 	! _testQEMU_hostArch_x64-raspi && echo "warn: not checking x64 translation" && return 0
 	
-	if ! sudo -n /usr/sbin/update-binfmts --display | grep qemu > /dev/null 2>&1
+	
+	
+	
+	if ! sudo -n cat /proc/sys/fs/binfmt_misc/* 2> /dev/null | grep qemu | grep 'arm$\|arm-static$' > /dev/null 2>&1
 	then
 		echo 'binfmts does not mention qemu-arm'
 		_stop 1
 	fi
 	
-	if ! sudo -n /usr/sbin/update-binfmts --display | grep qemu-armeb-static > /dev/null 2>&1
+	if ! sudo -n cat /proc/sys/fs/binfmt_misc/* 2> /dev/null | grep qemu | grep 'armeb$\|armeb-static$' > /dev/null 2>&1
 	then
 		echo 'binfmts does not mention qemu-armeb'
 		_stop 1
@@ -9290,8 +11045,34 @@ _qemu_system_aarch64() {
 	qemu-system-aarch64 "$@"
 }
 
+_integratedQemu_imagefilename() {
+	if [[ "$ubVirtDiskOverride" == "" ]]
+	then
+		local current_imagefilename
+		if ! current_imagefilename=$(_loopImage_imagefilename)
+		then
+			_messagePlain_bad 'fail: missing: vm*.img'
+			return 1
+		fi
+	else
+		current_imagefilename="$ubVirtDiskOverride"
+	fi
+	
+	echo "$current_imagefilename"
+	
+	return 0
+}
+
 _integratedQemu_x64() {
 	_messagePlain_nominal 'init: _integratedQemu_x64'
+	
+	
+	local current_imagefilename
+	if ! current_imagefilename=$(_integratedQemu_imagefilename)
+	then
+		_stop 1
+	fi
+	
 	
 	! mkdir -p "$instancedVirtDir" && _messagePlain_bad 'fail: mkdir -p instancedVirtDir= '"$instancedVirtDir" && _stop 1
 	
@@ -9333,7 +11114,11 @@ _integratedQemu_x64() {
 	[[ "$hostThreadCount" -ge "4" ]] && [[ "$hostThreadCount" -lt "8" ]] && _messagePlain_probe 'cpu: >4' && qemuArgs+=(-smp 4)
 	[[ "$hostThreadCount" -ge "8" ]] && _messagePlain_probe 'cpu: >6' && qemuArgs+=(-smp 6)
 	
-	qemuUserArgs+=(-drive format=raw,file="$scriptLocal"/vm.img -drive file="$hostToGuestISO",media=cdrom -boot c)
+	#https://superuser.com/questions/342719/how-to-boot-a-physical-windows-partition-with-qemu
+	#qemuUserArgs+=(-drive format=raw,file="$scriptLocal"/vm.img)
+	qemuUserArgs+=(-drive format=raw,file="$current_imagefilename")
+	
+	qemuUserArgs+=(-drive file="$hostToGuestISO",media=cdrom -boot c)
 	
 	[[ "$vmMemoryAllocation" == "" ]] && vmMemoryAllocation="$vmMemoryAllocationDefault"
 	qemuUserArgs+=(-m "$vmMemoryAllocation")
@@ -9380,6 +11165,14 @@ _integratedQemu_x64() {
 _integratedQemu_raspi() {
 	_messagePlain_nominal 'init: _integratedQemu_raspi'
 	
+	
+	local current_imagefilename
+	if ! current_imagefilename=$(_integratedQemu_imagefilename)
+	then
+		_stop 1
+	fi
+	
+	
 	! mkdir -p "$instancedVirtDir" && _messagePlain_bad 'fail: mkdir -p instancedVirtDir= '"$instancedVirtDir" && _stop 1
 	
 	! _commandBootdisc "$@" && _messagePlain_bad 'fail: _commandBootdisc' && _stop 1
@@ -9394,8 +11187,13 @@ _integratedQemu_raspi() {
 	#local hostThreadCount=$(cat /proc/cpuinfo | grep MHz | wc -l | tr -dc '0-9')
 	#[[ "$hostThreadCount" -ge "4" ]] && _messagePlain_probe 'cpu: >4' && qemuArgs+=(-smp 4)
 	
-	qemuUserArgs+=(-drive format=raw,file="$scriptLocal"/vm-raspbian.img)
+	#https://superuser.com/questions/342719/how-to-boot-a-physical-windows-partition-with-qemu
+	#qemuUserArgs+=(-drive format=raw,file="$scriptLocal"/vm-raspbian.img)
+	qemuUserArgs+=(-drive format=raw,file="$current_imagefilename")
+	
+	
 	#qemuUserArgs+=(-drive if=none,id=uas-cdrom,media=cdrom,file="$hostToGuestISO" -device nec-usb-xhci,id=xhci -device usb-uas,id=uas,bus=xhci.0 -device scsi-cd,bus=uas.0,scsi-id=0,lun=5,drive=uas-cdrom)
+	
 	qemuUserArgs+=(-drive file="$hostToGuestISO",media=cdrom -boot c)
 	
 	#[[ "$vmMemoryAllocation" == "" ]] && vmMemoryAllocation="$vmMemoryAllocationDefault"
@@ -9431,20 +11229,27 @@ _integratedQemu_raspi() {
 }
 
 _integratedQemu() {
-	if [[ -e "$scriptLocal"/vm.img ]]
+	# Include platform determination code for correct determination of partition and mounts.
+	_loopImage_imagefilename > /dev/null 2>&1
+	
+	if [[ "$ubVirtPlatform" == "x64-bios" ]]
 	then
 		_integratedQemu_x64 "$@"
-		return 0
+		return "$?"
 	fi
 	
-	if [[ -e "$scriptLocal"/vm-raspbian.img ]]
+	# TODO: 'efi' .
+	#https://unix.stackexchange.com/questions/52996/how-to-boot-efi-kernel-using-qemu-kvm
+	
+	if [[ "$ubVirtPlatform" == "raspbian" ]]
 	then
 		_integratedQemu_raspi "$@"
-		return 0
+		return "$?"
 	fi
 	
-	_messagePlain_bad 'fail: missing: vm*.img'
-	return 1
+	#Default x64 .
+	"$scriptAbsoluteLocation" _integratedQemu_x64 "$@"
+	return "$?"
 }
 
 #"${qemuSpecialArgs[@]}" == ["-snapshot "]
@@ -9517,6 +11322,8 @@ _testVBox() {
 _checkVBox_raw() {
 	#Use existing VDI image if available.
 	[[ -e "$scriptLocal"/vm.vdi ]] && _messagePlain_bad 'conflict: vm.vdi' && return 1
+	
+	# WARNING: Only 'vm.img' is supported as a raw image file name for vbox virtualization backend.
 	[[ ! -e "$scriptLocal"/vm.img ]] && _messagePlain_bad 'missing: vm.img' && return 1
 	
 	return 0
@@ -9533,7 +11340,6 @@ _create_vbox_raw() {
 	return 0
 }
 
-
 _mountVBox_raw_sequence() {
 	_messagePlain_nominal 'start: _mountVBox_raw_sequence'
 	_start
@@ -9546,13 +11352,7 @@ _mountVBox_raw_sequence() {
 	
 	rm -f "$vboxRaw" > /dev/null 2>&1
 	
-	_messagePlain_nominal 'Creating loopback.'
-	! sudo -n losetup -f -P --show "$scriptLocal"/vm.img > "$safeTmp"/vboxloop 2> /dev/null && _messagePlain_bad 'fail: losetup' && _stop 1
 	
-	! cp -n "$safeTmp"/vboxloop "$scriptLocal"/vboxloop > /dev/null 2>&1 && _messagePlain_bad 'fail: copy vboxloop' && _stop 1
-	
-	local vboximagedev
-	vboximagedev=$(cat "$safeTmp"/vboxloop)
 	
 	if _tryExecFull _hook_systemd_shutdown_action "_closeVBoxRaw" "$sessionid"
 	then
@@ -9561,10 +11361,37 @@ _mountVBox_raw_sequence() {
 		_messagePlain_bad 'fail: _hook_systemd_shutdown_action'
 	fi
 	
-	! sudo -n chown "$USER" "$vboximagedev" && _messagePlain_bad 'chown vboximagedev= '"$vboximagedev" && _stop 1
+	
+	
+	
+	local current_imagefilename
+	current_imagefilename=$(_loopImage_imagefilename)
+	
+	_messagePlain_nominal 'Creating loopback.'
+	
+	# Echo error message.
+	[[ -e "$scriptLocal"/vboxloop ]] && _messagePlain_bad 'fail: copy vboxloop' && _stop 1
+	
+	! _loopFull "$scriptLocal"/vboxloop && _messagePlain_bad 'fail: losetup' && _stop 1
+	
+	
+	
+	local vboximagedev
+	vboximagedev=$(cat "$scriptLocal"/vboxloop)
+	
+	
+	if _detect_deviceAsVirtImage "$current_imagefilename"
+	then
+		_messagePlain_warn 'warn: chown: ignoring device'
+	else
+		! sudo -n chown "$USER" "$vboximagedev" && _messagePlain_bad 'chown vboximagedev= '"$vboximagedev" && _stop 1
+	fi
+	
 	
 	_messagePlain_nominal 'Creating VBoxRaw.'
 	_create_vbox_raw "$vboximagedev"
+	
+	
 	
 	_messagePlain_nominal 'stop: _mountVBox_raw_sequence'
 	_safeRMR "$instancedVirtDir" || _stop 1
@@ -9585,10 +11412,7 @@ _waitVBox_opening() {
 }
 
 _umountVBox_raw() {
-	local vboximagedev
-	vboximagedev=$(cat "$scriptLocal"/vboxloop)
-	
-	sudo -n losetup -d "$vboximagedev" > /dev/null 2>&1 || return 1
+	! _umountFull "$scriptLocal"/vboxloop && _stop 1
 	
 	rm -f "$scriptLocal"/vboxloop > /dev/null 2>&1
 	rm -f "$vboxRaw" > /dev/null 2>&1
@@ -9689,6 +11513,31 @@ _labVBox() {
 	_launch_lab_vbox "$@"
 }
 
+_launch_lab_vbox_manage_sequence() {
+	_start
+	
+	_prepare_lab_vbox || return 1
+	
+	#Directly opening raw images in the VBoxLab environment is not recommended, due to changing VMDK disk identifiers.
+	#Better practice may be to instead programmatically construct the raw image virtual machines before opening VBoxLab environment.
+	#_openVBoxRaw
+	
+	env HOME="$VBOX_USER_HOME_short" VBoxManage "$@"
+	
+	_wait_lab_vbox
+	
+	_stop
+}
+
+_launch_lab_vbox_manage() {	
+	"$scriptAbsoluteLocation" _launch_lab_vbox_manage_sequence "$@"
+}
+
+_labVBoxManage() {
+	_launch_lab_vbox_manage "$@"
+}
+
+
 _vboxlabSSH() {
 	ssh -q -F "$scriptLocal"/vblssh -i "$scriptLocal"/id_rsa "$1"
 }
@@ -9781,9 +11630,10 @@ _vboxGUI() {
 
 _set_instance_vbox_type() {
 	#[[ "$vboxOStype" == "" ]] && export vboxOStype=Debian_64
-	#[[ "$vboxOStype" == "" ]] && export vboxOStype=Gentoo
+	#[[ "$vboxOStype" == "" ]] && export vboxOStype=Gentoo_64
 	#[[ "$vboxOStype" == "" ]] && export vboxOStype=Windows2003
 	#[[ "$vboxOStype" == "" ]] && export vboxOStype=WindowsXP
+	#[[ "$vboxOStype" == "" ]] && export vboxOStype=Windows10_64
 	
 	[[ "$vboxOStype" == "" ]] && _readLocked "$lock_open" && export vboxOStype=Debian_64
 	[[ "$vboxOStype" == "" ]] && export vboxOStype=WindowsXP
@@ -9949,10 +11799,32 @@ _set_instance_vbox_features() {
 	
 	_messagePlain_nominal "Setting VBox VM features."
 	
-	if ! _messagePlain_probe_cmd VBoxManage modifyvm "$sessionid" --biosbootmenu disabled --bioslogofadein off --bioslogofadeout off --bioslogodisplaytime 1 --vram 128 --memory "$vmMemoryAllocation" --nic1 "$vboxNic" --nictype1 "$vboxNictype" --clipboard bidirectional --accelerate3d off --accelerate2dvideo off --vrde off --audio pulse --usb on --cpus "$vboxCPUs" --ioapic on --acpi on --pae on --chipset "$vboxChipset" --audiocontroller="$vboxAudioController"
+	if ! _messagePlain_probe_cmd VBoxManage modifyvm "$sessionid" --biosbootmenu disabled --bioslogofadein off --bioslogofadeout off --bioslogodisplaytime 1 --vram 128 --memory "$vmMemoryAllocation" --nic1 "$vboxNic" --nictype1 "$vboxNictype" --accelerate3d off --accelerate2dvideo off --vrde off --audio null --audioin off --audioout on --usb on --cpus "$vboxCPUs" --ioapic on --acpi on --pae on --chipset "$vboxChipset" --audiocontroller="$vboxAudioController"
 	then
 		_messagePlain_bad 'fail: VBoxManage'
 		return 1
+	fi
+	
+	#_messagePlain_probe_cmd VBoxManage controlvm "$sessionid" clipboard bidirectional
+	
+	# Linux hosts may benefit from 'vboxsvga' instead of 'vmsvga'.
+	#https://wiki.gentoo.org/wiki/VirtualBox
+	#Testing shows this may not be the case, and 3D acceleration reportedly requires vmsvga.
+	if [[ "$vboxOStype" == *"Debian"* ]] || [[ "$vboxOStype" == *"Gentoo"* ]]
+	then
+		# Assuming x64 hosts served by VBox will have at least 'Intel HD Graphics 3000' (as found on X220 laptop/tablet) equivalent. Lesser hardware not recommended.
+		if [[ "$vboxCPUs" -ge "2" ]]
+		then
+			if ! _messagePlain_probe_cmd VBoxManage modifyvm "$sessionid" --graphicscontroller vmsvga --accelerate3d on --accelerate2dvideo off
+			then
+				_messagePlain_warn 'warn: fail: VBoxManage: --graphicscontroller vmsvga --accelerate3d on --accelerate2dvideo off'
+			fi
+		else
+			if ! _messagePlain_probe_cmd VBoxManage modifyvm "$sessionid" --graphicscontroller vmsvga --accelerate3d off --accelerate2dvideo off
+			then
+				_messagePlain_warn 'warn: fail: VBoxManage: --graphicscontroller vboxsvga --accelerate3d off --accelerate2dvideo off'
+			fi
+		fi
 	fi
 	
 	# Assuming x64 hosts served by VBox will have at least 'Intel HD Graphics 3000' (as found on X220 laptop/tablet) equivalent. Lesser hardware not recommended.
@@ -9961,7 +11833,7 @@ _set_instance_vbox_features() {
 		_messagePlain_probe VBoxManage modifyvm "$sessionid" --graphicscontroller vboxsvga --accelerate3d on --accelerate2dvideo on
 		if ! VBoxManage modifyvm "$sessionid" --graphicscontroller vboxsvga --accelerate3d on --accelerate2dvideo on
 		then
-			_messagePlain_warn 'warn: VBoxManage: --graphicscontroller vboxsvga --accelerate3d on --accelerate2dvideo on'
+			_messagePlain_warn 'warn: fail: VBoxManage: --graphicscontroller vboxsvga --accelerate3d on --accelerate2dvideo on'
 		fi
 	fi
 	
@@ -9979,6 +11851,16 @@ _set_instance_vbox_features_app() {
 	#fi
 	
 	#! VBoxManage modifyvm "$sessionid" --usbxhci on && return 1
+}
+
+_set_instance_vbox_features_app_post() {
+	true
+	
+	# WARNING: Change to 'SATA Controller' if appropriate.
+	#if ! _messagePlain_probe_cmd VBoxManage storageattach "$sessionid" --storagectl "IDE Controller" --port 2 --device 0 --type hdd --medium "$scriptLocal"/vm_bulk.vdi --mtype "immutable"
+	#then
+	#	_messagePlain_warn 'fail: vm_bulk.vdi'
+	#fi
 }
 
 _set_instance_vbox_share() {
@@ -10004,32 +11886,7 @@ _set_instance_vbox_command() {
 	return 0
 }
 
-_create_instance_vbox() {
-	
-	#Use existing VDI image if available.
-	if ! [[ -e "$scriptLocal"/vm.vdi ]]
-	then
-		_messagePlain_nominal 'Missing VDI. Attempting to create from IMG.'
-		! _openVBoxRaw && _messageError 'FAIL' && return 1
-	fi
-	
-	_messagePlain_nominal 'Checking VDI file.'
-	export vboxInstanceDiskImage="$scriptLocal"/vm.vdi
-	_readLocked "$lock_open" && vboxInstanceDiskImage="$vboxRaw"
-	! [[ -e "$vboxInstanceDiskImage" ]] && _messagePlain_bad 'missing: vboxInstanceDiskImage= '"$vboxInstanceDiskImage" && return 1
-	
-	_messagePlain_nominal 'Determining OS type.'
-	_set_instance_vbox_type
-	
-	! _set_instance_vbox_features && _messageError 'FAIL' && return 1
-	
-	! _set_instance_vbox_features_app && _messageError 'FAIL: unknown app failure' && return 1
-	
-	_set_instance_vbox_command "$@"
-	
-	_messagePlain_nominal 'Mounting shared filesystems.'
-	_set_instance_vbox_share
-	
+_create_instance_vbox_storageattach_ide() {
 	_messagePlain_nominal 'Attaching local filesystems.'
 	! VBoxManage storagectl "$sessionid" --name "IDE Controller" --add ide --controller PIIX4 && _messagePlain_bad 'fail: VBoxManage... attach ide controller'
 	
@@ -10042,13 +11899,83 @@ _create_instance_vbox() {
 	! VBoxManage storageattach "$sessionid" --storagectl "IDE Controller" --port 0 --device 0 --type hdd --medium "$vboxInstanceDiskImage" --mtype "$vboxDiskMtype" && _messagePlain_bad 'fail: VBoxManage... attach vboxInstanceDiskImage= '"$vboxInstanceDiskImage"
 	
 	[[ -e "$hostToGuestISO" ]] && ! VBoxManage storageattach "$sessionid" --storagectl "IDE Controller" --port 1 --device 0 --type dvddrive --medium "$hostToGuestISO" && _messagePlain_bad 'fail: VBoxManage... attach hostToGuestISO= '"$hostToGuestISO"
+}
+
+_create_instance_vbox_storageattach_sata() {
+	_messagePlain_nominal 'Attaching local filesystems.'
+	! VBoxManage storagectl "$sessionid" --name "SATA Controller" --add sata --controller IntelAHCI --portcount 5 --hostiocache on && _messagePlain_bad 'fail: VBoxManage... attach sata controller'
+	
+	#export vboxDiskMtype="normal"
+	#[[ "$vboxDiskMtype" == "" ]] && export vboxDiskMtype="multiattach"
+	[[ "$vboxDiskMtype" == "" ]] && export vboxDiskMtype="immutable"
+	_messagePlain_probe 'vboxDiskMtype= '"$vboxDiskMtype"
+	
+	_messagePlain_probe VBoxManage storageattach "$sessionid" --storagectl "SATA Controller" --port 0 --device 0 --type hdd --medium "$vboxInstanceDiskImage" --mtype "$vboxDiskMtype"
+	! VBoxManage storageattach "$sessionid" --storagectl "SATA Controller" --port 0 --device 0 --type hdd --medium "$vboxInstanceDiskImage" --mtype "$vboxDiskMtype" && _messagePlain_bad 'fail: VBoxManage... attach vboxInstanceDiskImage= '"$vboxInstanceDiskImage"
+	
+	[[ -e "$hostToGuestISO" ]] && ! VBoxManage storageattach "$sessionid" --storagectl "SATA Controller" --port 1 --device 0 --type dvddrive --medium "$hostToGuestISO" && _messagePlain_bad 'fail: VBoxManage... attach hostToGuestISO= '"$hostToGuestISO"
+}
+
+_create_instance_vbox_storageattach() {
+	# IDE Controller found to have some problems with at least Gentoo_64 EFI guests.
+	# WARNING: Do NOT change without consideration for legacy VMs.
+	if [[ "$ubVirtPlatformOverride" == *'efi' ]] || ( [[ "$vboxOStype" != "" ]] && [[ "$vboxOStype" != *"Debian"* ]] && [[ "$vboxOStype" != *"Win"*"XP"* ]] && [[ "$vboxOStype" != *"Win"*"10"* ]] && [[ "$vboxOStype" != *"Win"* ]] )
+	then
+		_create_instance_vbox_storageattach_sata
+		return
+	fi
+	
+	# Legacy default.
+	_create_instance_vbox_storageattach_ide
+	return
+}
+
+_create_instance_vbox() {
+	
+	#Use existing VDI image if available.
+	if ! [[ -e "$scriptLocal"/vm.vdi ]]
+	then
+		# IMG file may be a device file. See 'virtualization/image/mountimage.sh' .
+		_messagePlain_nominal 'Missing VDI. Attempting to open IMG.'
+		! _openVBoxRaw && _messageError 'FAIL' && return 1
+	fi
+	
+	_messagePlain_nominal 'Checking VDI or IMG availability.'
+	export vboxInstanceDiskImage="$scriptLocal"/vm.vdi
+	_readLocked "$lock_open" && vboxInstanceDiskImage="$vboxRaw"
+	! [[ -e "$vboxInstanceDiskImage" ]] && _messagePlain_bad 'missing: vboxInstanceDiskImage= '"$vboxInstanceDiskImage" && return 1
+	
+	_messagePlain_nominal 'Determining OS type.'
+	_set_instance_vbox_type
+	
+	! _set_instance_vbox_features && _messageError 'FAIL' && return 1
+	
+	
+	if [[ "$ubVirtPlatformOverride" == *'efi' ]]
+	then
+		VBoxManage modifyvm "$sessionid" --firmware efi64
+	else
+		# Default.
+		VBoxManage modifyvm "$sessionid" --firmware bios
+	fi
+	
+	! _set_instance_vbox_features_app && _messageError 'FAIL: unknown app failure' && return 1
+	
+	_set_instance_vbox_command "$@"
+	
+	_messagePlain_nominal 'Mounting shared filesystems.'
+	_set_instance_vbox_share
+	
+	_create_instance_vbox_storageattach
+	
+	
 	
 	#VBoxManage showhdinfo "$scriptLocal"/vm.vdi
 
 	#Suppress annoying warnings.
 	! VBoxManage setextradata global GUI/SuppressMessages "remindAboutAutoCapture,remindAboutMouseIntegration,remindAboutMouseIntegrationOn,showRuntimeError.warning.HostAudioNotResponding,remindAboutGoingSeamless,remindAboutInputCapture,remindAboutGoingFullscreen,remindAboutMouseIntegrationOff,confirmGoingSeamless,confirmInputCapture,remindAboutPausedVMInput,confirmVMReset,confirmGoingFullscreen,remindAboutWrongColorDepth" && _messagePlain_warn 'fail: VBoxManage... suppress messages'
 	
-	
+	_set_instance_vbox_features_app_post
 	
 	return 0
 }
@@ -10134,6 +12061,38 @@ _editVBox() {
 	_edit_instance_vbox "$@"
 	_messageNormal 'End: '"$@"
 }
+
+
+
+
+_launch_user_vbox_manage_sequence() {
+	_start
+	
+	_prepare_instance_vbox || _stop 1
+	
+	_readLocked "$vBox_vdi" && return 1
+	
+	_createLocked "$vBox_vdi" || return 1
+	
+	env HOME="$VBOX_USER_HOME_short" VBoxManage "$@"
+	
+	_wait_instance_vbox
+	
+	rm -f "$vBox_vdi" > /dev/null 2>&1
+	
+	_rm_instance_vbox
+	
+	_stop
+}
+
+_launch_user_vbox_manage() {
+	"$scriptAbsoluteLocation" _launch_user_vbox_manage_sequence "$@"
+}
+
+_userVBoxManage() {
+	_launch_user_vbox_manage "$@"
+}
+
 
 
 _here_dosbox_base_conf() {
@@ -10721,6 +12680,9 @@ _test_docker() {
 	if ! _permitDocker docker run "ubdockerhello" 2>&1 | grep 'hello world' > /dev/null 2>&1
 	then
 		echo 'failed ubdockerhello'
+		echo 'request: may require iptables legacy'
+		echo 'sudo -n update-alternatives --set iptables /usr/sbin/iptables-legacy'
+		echo 'sudo -n update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy'
 		_stop 1
 	fi
 	
@@ -10806,10 +12768,18 @@ _userDocker() {
 #####Shortcuts
 
 _visualPrompt() {
-#+%H:%M:%S\ %Y-%m-%d\ Q%q
-#+%H:%M:%S\ %b\ %d,\ %y
-export PS1='\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])-\[\033[01;36m\]------------------------\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\ .%d)\[\033[01;34m\])-\[\033[01;36m\]- -|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]+\[\033[01;34m\]-|\#) \[\033[36m\]>\[\033[00m\] '
-} 
+	#+%H:%M:%S\ %Y-%m-%d\ Q%q
+	#+%H:%M:%S\ %b\ %d,\ %y
+
+	#Long.
+	#export PS1='\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])-\[\033[01;36m\]--\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\ .%d)\[\033[01;34m\])-\[\033[01;36m\]-|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]+\[\033[01;34m\]-|\#) \[\033[36m\]>\[\033[00m\] '
+
+	#Short.
+	#export PS1='\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])-\[\033[01;36m\]-\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\ .%d)\[\033[01;34m\])\[\033[01;36m\]|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]+\[\033[01;34m\]|\#) \[\033[36m\]>\[\033[00m\] '
+	
+	#Truncated, 40 columns.
+	export PS1='\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])\[\033[01;36m\]\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\.%d)\[\033[01;34m\])\[\033[01;36m\]|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]\[\033[01;34m\]|\#) \[\033[36m\]>\[\033[00m\] '
+}
 
 #https://stackoverflow.com/questions/15432156/display-filename-before-matching-line-grep
 _grepFileLine() {
@@ -10831,10 +12801,12 @@ _findFunction() {
 }
 
 _test_devemacs() {
-	_getDep emacs
+	_wantGetDep emacs
 	
 	local emacsDetectedVersion=$(emacs --version | head -n 1 | cut -f 3 -d\ | cut -d\. -f1)
-	! [[ "$emacsDetectedVersion" -ge "24" ]] && echo emacs too old && _stop 1
+	! [[ "$emacsDetectedVersion" -ge "24" ]] && echo emacs too old && return 1
+	
+	return 0
 }
 
 _set_emacsFakeHomeSource() {
@@ -10959,12 +12931,14 @@ _ubdb() {
 }
 
 _test_devatom() {
-	_getDep rsync
+	_wantGetDep rsync
 	
-	_getDep atom
+	_wantGetDep atom
 	
 	#local atomDetectedVersion=$(atom --version | head -n 1 | cut -f 2- -d \: | cut -f 2- -d \  | cut -f 2 -d \. )
-	#! [[ "$atomDetectedVersion" -ge "27" ]] && echo atom too old && _stop 1
+	#! [[ "$atomDetectedVersion" -ge "27" ]] && echo atom too old && return 1
+	
+	return 0
 }
 
 _install_fakeHome_atom() {	
@@ -11079,155 +13053,110 @@ _ubide() {
 	_atom . ./ubiquitous_bash.sh "$@"
 }
 
-_test_deveclipse() {
-	_getDep eclipse
-	
-	! [[ -e /usr/share/eclipse/dropins/cdt ]] && echo 'warn: missing: /usr/share/eclipse/dropins/cdt'
+_set_java__eclipse() {
+	_set_java_openjdk "$@"
 }
 
-#"$1" == workspaceDir
-_prepare_eclipse_workspace() {
-	local local_workspace_import="$1"/_import
-	
-	mkdir -p "$local_workspace_import"
-	
-	local local_workspace_abstract
-	
-	#Scope
-	if [[ "$ub_specimen" != "" ]] && [[ "$ub_scope" != "" ]]
-	then
-		local_workspace_abstract=$(_name_abstractfs "$ub_specimen")
-		
-		mkdir -p "$local_workspace_import"/"$local_workspace_abstract"
-		
-		_relink "$ub_specimen" "$local_workspace_import"/"$local_workspace_abstract"/specimen
-		_relink "$ub_scope" "$local_workspace_import"/"$local_workspace_abstract"/scope
-		
-		#Export directories to be used for projects/sets to be stored in shared repositories.
-		mkdir -p "$ub_specimen"/_export
-		_relink "$ub_specimen"/_export "$local_workspace_import"/"$local_workspace_abstract"/_export
-		
-		_messagePlain_good 'eclipse: install: specimen, scope: '"$local_workspace_import"/"$local_workspace_abstract"
-	fi
-	
-	#Arbitary Project
-	if [[ "$arbitraryProjectDir" != "" ]]
-	then
-		local_workspace_abstract=$(_name_abstractfs "$arbitraryProjectDir")
-		
-		mkdir -p "$local_workspace_import"/"$local_workspace_abstract"
-		
-		_relink "$arbitraryProjectDir" "$local_workspace_import"/"$local_workspace_abstract"
-		
-		#Export directories to be used for projects/sets to be stored in shared repositories.
-		mkdir -p "$arbitraryProjectDir"/_export
-		_relink "$arbitraryProjectDir"/_export "$local_workspace_import"/"$local_workspace_abstract"/_export
-		
-		_messagePlain_good 'eclipse: install: arbitraryProjectDir: '"$local_workspace_import"/"$local_workspace_abstract"
-	fi
+
+_eclipse_binary() {
+	eclipse "$@"
 }
 
-#Creates user and export directories for eclipse instance. User directories to be used for project specific workspace. Export directories to be used for projects/sets to be stored in shared repositories.
-#"$eclipse_path" (eg. "$ub_specimen")
-#"eclipse_root" (eg. ".eclipser")
-_prepare_eclipse() {
-	#Special meaning of "$PWD" when run under _abstractfs ("$localPWD") is intended.
-	if [[ "$eclipse_path" == "" ]]
-	then
-		export eclipse_path=$(_getAbsoluteLocation "$PWD"/..)
-		[[ "$ub_specimen" != "" ]] && export eclipse_path=$(_getAbsoluteLocation "$ub_specimen"/..)
-		#[[ "$ub_scope" != "" ]] && export eclipse_path=$(_getAbsoluteLocation "$ub_scope")
-	fi
-	
-	if [[ "$eclipse_root" == "" ]]
-	then
-		export eclipse_root=$(_name_abstractfs "$ub_specimen")
-		export eclipse_root="$eclipse_root".ecr
-		#export eclipse_root='eclipser'
-		#export eclipse_root='.eclipser'
-	fi
-	
-	export eclipse_user='user'
-	
-	#export eclipse_export='_export'
-	
-	export eclipse_data='workspace'
-	export eclipse_config='configuration'
-	
-	mkdir -p "$eclipse_path"/"$eclipse_root"
-	mkdir -p "$eclipse_path"/"$eclipse_root"/"$eclipse_user"
-	#mkdir -p "$eclipse_path"/"$eclipse_root"/"$eclipse_export"
-	mkdir -p "$eclipse_path"/"$eclipse_root"/"$eclipse_data"
-	mkdir -p "$eclipse_path"/"$eclipse_root"/"$eclipse_user"/"$eclipse_config"
-	
-	#_mustcarry 'eclipser/' "$eclipse_path"/"$eclipse_root"/.gitignore
-	_mustcarry "$eclipse_user"/ "$eclipse_path"/"$eclipse_root"/.gitignore
-	_mustcarry "$eclipse_data"/ "$eclipse_path"/"$eclipse_root"/.gitignore
-	_mustcarry "$eclipse_user"/"$eclipse_config"/ "$eclipse_path"/"$eclipse_root"/.gitignore
-}
-
-_install_fakeHome_eclipse() {	
-	_link_fakeHome "$eclipse_path"/"$eclipse_root"/"$eclipse_data" workspace
-	
-	_link_fakeHome "$eclipse_path"/"$eclipse_root"/"$eclipse_user" .eclipse
-	#_link_fakeHome "$eclipse_path"/"$eclipse_root"/"$eclipse_user"/"$eclipse_config" .eclipse/configuration
-}
-
-_eclipse_procedure() {
-	_prepare_eclipse
-	_prepare_eclipse_workspace "$eclipse_path"/"$eclipse_root"/"$eclipse_data"
-	_messagePlain_probe eclipse -data "$eclipse_path"/"$eclipse_root"/"$eclipse_data" -configuration "$eclipse_path"/"$eclipse_root"/"$eclipse_user"/"$eclipse_config" "$@"
-	eclipse -data "$eclipse_path"/"$eclipse_root"/"$eclipse_data" -configuration "$eclipse_path"/"$eclipse_root"/"$eclipse_user"/"$eclipse_config" "$@"
-}
-
-_eclipse_config() {
-	_eclipse_procedure "$@"
-}
-
-_eclipse_stock() {
-	_prepare_eclipse_workspace "$HOME"/workspace
-	eclipse -data "$HOME"/workspace "$@"
-}
-
-_eclipse_home() {
-	_prepare_eclipse_workspace "$HOME"/workspace
-	_messagePlain_probe eclipse -data "$HOME"/workspace -configuration "$HOME"/.eclipse/configuration "$@"
-	eclipse -data "$HOME"/workspace -configuration "$HOME"/.eclipse/configuration "$@"
-}
-
-_eclipse_edit() {
-	_prepare_eclipse
-	
-	export actualFakeHome="$shortFakeHome"
-	#export actualFakeHome="$globalFakeHome"
-	export fakeHomeEditLib="true"
-	export keepFakeHome="true"
-	
-	_install_fakeHome_eclipse
-	
-	_fakeHome "$scriptAbsoluteLocation" --parent _eclipse_home "$@"
-}
-
-_eclipse_user() {
-	_prepare_eclipse
-	
-	export actualFakeHome="$shortFakeHome"
-	#export actualFakeHome="$globalFakeHome"
-	export fakeHomeEditLib="false"
-	export keepFakeHome="true"
-	
-	_install_fakeHome_eclipse
-	
-	_fakeHome "$scriptAbsoluteLocation" --parent _eclipse_home "$@"
+# ATTENTION: Override with 'core.sh', 'ops', or similar.
+# Static parameters. Must be accepted if function overridden to point script contained installation.
+_eclipse_param() {
+	_eclipse_example_binary -vm "$ubJava" -data "$ub_eclipse_workspace" -configuration "$ub_eclipse_configuration" "$@"
 }
 
 
 
 
 
-_eclipse() {
-	_eclipse_config "$@"
+
+
+ 
+
+
+_prepare_example_ConfigurationLookupDirectory_eclipse() {
+	#_prepare_abstractfs_appdir_none "$@"
+	
+	#_prepare_abstractfs_appdir_independent "$@"
+	
+	# DANGER: Strongly discouraged. May break use of "project.afs" with alternative layouts and vice versa.
+	#_prepare_abstractfs_appdir_shared "$@"
+	
+	_prepare_abstractfs_appdir_export "$@"
+	
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory
+	#_probe_prepare_abstractfs_appdir_AbstractSourceDirectory_prior
+	#_probe_prepare_abstractfs_appdir_post
+	_probe_prepare_abstractfs_appdir
+	
+	export ub_eclipse_workspace="$ubAFS_CLD"/_eclipse-workspace
+	export ub_eclipse_configuration="$ubAFS_CLD"/_eclipse-configuration/_eclipse_configuration
+	
+	mkdir -p "$ubASD_PRJ"
+	mkdir -p "$ubASD_CLD"
 }
+
+
+
+_eclipse_example_binary() {
+	eclipse "$@"
+	#sleep 9
+}
+
+
+# ATTENTION: Override with 'core.sh', 'ops', or similar.
+# Static parameters. Must be accepted if function overridden to point script contained installation.
+_eclipse_example-static() {
+	mkdir -p "$ub_eclipse_workspace"
+	mkdir -p "$ub_eclipse_configuration"
+	_eclipse_example_binary -vm "$ubJava" -data "$ub_eclipse_workspace" -configuration "$ub_eclipse_configuration" "$@"
+}
+
+
+
+_eclipse_example_procedure() {
+	! _set_java__eclipse && _stop 1
+	
+	# Scope will by default... cd "$ub_specimen" ...
+	#... abstractfs... consistent directory name... '_eclipse_executable'
+	mkdir -p ./project
+	cd ./project
+	
+	
+	# Configuration Lookup Directory
+	_prepare_example_ConfigurationLookupDirectory_eclipse _eclipse_example-static "$@"
+	
+	
+	#... fakeHome... preparation... disable ?
+	
+	
+	# Example only.
+	[[ "$specialGCC" != '' ]] && _messagePlain_request 'request: special GCC bin='"$specialGCC"
+	
+	#echo "$ub_specimen"
+	
+	
+	
+	_messagePlain_request 'request: abstractfs: project:  '"$ubAFS_PRJ"
+	
+	
+	#_abstractfs bash
+	#eclipse -vm "$ubJava"  "$@"
+	
+	
+	# DANGER: Current directory WILL be included in directory chosen by "_abstractfs" !
+	_abstractfs _eclipse_example-static "$@"
+}
+
+
+_eclipse_example() {
+	#_fakeHome "$scriptAbsoluteLocation" _eclipse_example_procedure "$@"
+	"$scriptAbsoluteLocation" _eclipse_example_procedure "$@"
+}
+
 
 #Simulated client/server discussion testing.
 
@@ -11342,12 +13271,24 @@ _query() {
 	( cd "$qc" ; _queryClient _bin cat | _log_query "$queryTmp"/tx.log | ( cd "$qs" ; _queryServer _bin cat | _log_query "$queryTmp"/xc.log | ( cd "$qc" ; _queryClient _bin cat | _log_query "$queryTmp"/rx.log ; return "${PIPESTATUS[0]}" )))
 }
 
-#Example, override with "core.sh" .
-_scope_compile() {
+_scope_attach_prog() {
 	true
 }
 
-#Example, override with "core.sh" .
+# No known production use.
+_scope_attach_compile() {
+	#_scope_command_write _compile
+	#_scope_command_external_here _compile
+	true
+}
+
+_scope_attach_query() {
+	_scope_command_write _query
+	_scope_command_write _qs
+	_scope_command_write _qc
+}
+
+# ATTENTION: Overload with "core.sh" or similar!
 _scope_attach() {
 	_messagePlain_nominal '_scope_attach'
 	
@@ -11362,12 +13303,11 @@ _scope_attach() {
 	_scope_command_write _scope_eclipse_procedure
 	_scope_command_write _scope_atom_procedure
 	
-	_scope_command_write _query
-	_scope_command_write _qs
-	_scope_command_write _qc
+	_scope_attach_query "$@"
 	
-	#_scope_command_write _compile
-	#_scope_command_external_here _compile
+	_scope_attach_compile "$@"
+	
+	_scope_attach_prog "$@"
 }
 
 _prepare_scope() {
@@ -11393,9 +13333,12 @@ _ops_scope() {
 	_messagePlain_nominal '_ops_scope'
 	
 	#Find/run ops file in project dir.
-	! [[ -e "$ub_specimen"/ops ]] && ! [[ -e "$ub_specimen"/ops.sh ]] && _messagePlain_warn 'aU: undef: sketch ops'
 	[[ -e "$ub_specimen"/ops ]] && _messagePlain_good 'aU: found: sketch ops: ops' && . "$ub_specimen"/ops
 	[[ -e "$ub_specimen"/ops.sh ]] && _messagePlain_good 'aU: found: sketch ops: ops.sh' && . "$ub_specimen"/ops.sh
+	
+	! [[ -e "$ub_specimen"/ops ]] && ! [[ -e "$ub_specimen"/ops.sh ]] && _messagePlain_warn 'aU: undef: sketch ops' && return 1
+	
+	return 0
 }
 
 #"$1" == ub_specimen
@@ -11456,6 +13399,15 @@ _scope_interact() {
 	"$@"
 }
 
+# ATTENTION: Overload with "core.sh" or similar!
+_scope_prog_procedure() {
+	# WARNING: Not necessarily wise for all applications. However, applications needing a different working directory should get there from an environment variable relative to script or specimen directory.
+	# WARNING: Disabling this may cause inconsistencies with programs which require "_abstractfs" (eg. Arduino, Eclipse).
+	cd "$ub_specimen"
+	
+	#true
+}
+
 
 _scope_sequence() {
 	_messagePlain_nominal 'init: scope: '"$ub_scope_name"
@@ -11464,6 +13416,8 @@ _scope_sequence() {
 	_start
 	_start_scope "$@"
 	_ops_scope
+	
+	_scope_prog_procedure "$@"
 	
 	_scope_attach "$@"
 	
@@ -11480,7 +13434,7 @@ _scope_prog() {
 }
 
 _scope() {
-	_scope_prog
+	_scope_prog "$@"
 	[[ "$ub_scope_name" == "" ]] && export ub_scope_name='scope'
 	"$scriptAbsoluteLocation" _scope_sequence "$@"
 }
@@ -11652,7 +13606,7 @@ _scope_dolphin() {
 }
 
 _testGit() {
-	_getDep git
+	_wantGetDep git
 }
 
 #Ignores file modes, suitable for use with possibly broken filesystems like NTFS.
@@ -11956,6 +13910,15 @@ CZXWXcRMTo8EmM8i4d
 
 }
 
+
+_test_mkboot() {
+	! _wantSudo && echo 'warn: no sudo'
+	
+	_wantGetDep grub-install
+	_wantGetDep MAKEDEV
+}
+
+
 #http://nairobi-embedded.org/making_a_qemu_disk_image_bootable_with_grub.html
 _mkboot_sequence() {
 	_start
@@ -12091,29 +14054,23 @@ _mkboot() {
 }
 
 
-_test_mkboot() {
-	_mustGetSudo
-	
-	_getDep grub-install
-	_getDep MAKEDEV
-}
-
 _testDistro() {
-	_getDep sha256sum
-	_getDep sha512sum
-	_getDep axel
+	_wantGetDep sha256sum
+	_wantGetDep sha512sum
+	_wantGetDep axel
 }
 
 #"$1" == storageLocation (optional)
 _test_fetchDebian() {
 	if ! ls /usr/share/keyrings/debian-role-keys.gpg > /dev/null 2>&1
 	then
-		echo 'Debian Keyring missing.'
-		echo 'apt-get install debian-keyring'
-		_mustGetSudo
+		echo 'warn: Debian Keyring missing.'
+		echo 'request: apt-get install debian-keyring'
+		! _wantSudo && echo 'warn: no sudo'
 		sudo -n apt-get install -y debian-keyring
-		! ls /usr/share/keyrings/debian-role-keys.gpg && _stop 1
+		! ls /usr/share/keyrings/debian-role-keys.gpg && return 1
 	fi
+	return 0
 }
 
 _fetch_x64_debianLiteISO_sequence() {
@@ -12346,9 +14303,9 @@ _create_msw() {
 }
 
 _testX11() {
-	_getDep xclip
+	_wantGetDep xclip
 	
-	_getDep xinput
+	_wantGetDep xinput
 }
 
 _report_xi() {
@@ -12391,45 +14348,156 @@ _reset_KDE() {
 	fi
 }
 
+# Also depends on '_labVBoxManage' and '_userVBoxManage' .
 _test_vboxconvert() {
-	_getDep VBoxManage
+	_wantGetDep VBoxManage
 }
 
+#No production use.
+_vdi_get_UUID() {
+	_userVBoxManage showhdinfo "$scriptLocal"/vm.vdi | grep ^UUID | cut -f2- -d\  | tr -dc 'a-zA-Z0-9\-'
+}
+
+#No production use.
+_vdi_write_UUID() {
+	_vdi_get_UUID > "$scriptLocal"/vm.vdi.uuid.quicktmp
+	
+	if [[ -e "$scriptLocal"/vm.vdi.uuid ]] && ! diff "$scriptLocal"/vm.vdi.uuid.quicktmp "$scriptLocal"/vm.vdi.uuid > /dev/null 2>&1
+	then
+		_messagePlain_bad 'conflict: mismatch: existing vdi uuid'
+		_messagePlain_request 'request: rm '"$scriptLocal"/vm.vdi.uuid
+		return 1
+	fi
+	
+	mv "$scriptLocal"/vm.vdi.uuid.quicktmp "$scriptLocal"/vm.vdi.uuid
+	return
+}
+
+#No production use.
+_vdi_read_UUID() {
+	local current_UUID
+	current_UUID=$(cat "$scriptLocal"/vm.vdi.uuid 2>/dev/null | tr -dc 'a-zA-Z0-9\-')
+	
+	[[ "$current_UUID" == "" ]] && return 1
+	echo "$current_UUID"
+	return 0
+}
+
+
 _vdi_to_img() {
-	VBoxManage clonehd "$scriptLocal"/vm.vdi "$scriptLocal"/vm.img --format RAW
+	_messageNormal '_vdi_to_img: init'
+	! [[ -e "$scriptLocal"/vm.vdi ]] && _messagePlain_bad 'fail: missing: in file' && return 1
+	[[ -e "$scriptLocal"/vm.img ]] && _messagePlain_request 'request: rm '"$scriptLocal"/vm.img && return 1
+	
+	_messageNormal '_vdi_to_img: _vdi_write_UUID'
+	# No production use. Only required by other functions, also no production use.
+	if ! _vdi_write_UUID
+	then
+		_messagePlain_bad 'fail: _vdi_write_UUID'
+		return 1
+	fi
+	
+	_messageNormal '_vdi_to_img: clonehd'
+	if _userVBoxManage clonehd "$scriptLocal"/vm.vdi "$scriptLocal"/vm.img --format RAW
+	then
+		#_messageNormal '_vdi_to_img: closemedium'
+		#_userVBoxManage closemedium "$scriptLocal"/vm.img
+		_messagePlain_request 'request: rm '"$scriptLocal"/vm.vdi
+		_messagePlain_good 'End.'
+		return 0
+	fi
+	#_messageNormal '_vdi_to_img: closemedium'
+	#_userVBoxManage closemedium "$scriptLocal"/vm.img
+	
+	_messageFAIL
+	return 1
 }
 
 #No production use. Not recommended except to accommodate MSW hosts.
 _img_to_vdi() {
-	VBoxManage convertdd "$scriptLocal"/vm.vdi "$scriptLocal"/vm.img --format VDI 
+	_messageNormal '_img_to_vdi: init'
+	! [[ -e "$scriptLocal"/vm.img ]] && _messagePlain_bad 'fail: missing: in file' && return 1
+	[[ -e "$scriptLocal"/vm.vdi ]] && _messagePlain_request 'request: rm '"$scriptLocal"/vm.vdi && return 1
+	
+	_messageNormal '_img_to_vdi: convertdd'
+	if _userVBoxManage convertdd "$scriptLocal"/vm.img "$scriptLocal"/vm-c.vdi --format VDI
+	then
+		#_messageNormal '_img_to_vdi: closemedium'
+		#_userVBoxManage closemedium "$scriptLocal"/vm-c.vdi
+		_messageNormal '_img_to_vdi: mv vm-c.vdi vm.vdi'
+		mv -n "$scriptLocal"/vm-c.vdi "$scriptLocal"/vm.vdi
+		_messageNormal '_img_to_vdi: setuuid'
+		VBoxManage internalcommands sethduuid "$scriptLocal"/vm.vdi $(_vdi_read_UUID)
+		_messagePlain_request 'request: rm '"$scriptLocal"/vm.img
+		_messagePlain_good 'End.'
+		return 0
+	fi
+	
+	_messageFAIL
+	return 1
 }
 
-#No production use. Take care to ensure neither "vm.vdi" nor "/dev/nbd0" are not in use.
-_vdi_gparted() {
-	sudo -n modprobe nbd
-	sudo -n qemu-nbd -c /dev/nbd0 "$scriptLocal"/vm.vdi
+
+#No production use. Dependency of functions which also have no production use.
+#https://unix.stackexchange.com/questions/33508/check-which-network-block-devices-are-in-use
+_nbd-available_vbox() {
+	nbd-client -c "$1";
+	[ 1 = $? ] &&
+	python -c 'import os,sys; os.open(sys.argv[1], os.O_EXCL)' "$1" 2>/dev/null;
+}
+
+#No production use. Dependency of functions which also have no production use.
+_check_nbd_vbox() {
+	! _wantSudo && _messagePlain_bad 'fail: _wantSudo' && _messageFAIL
 	
-	sudo -n partprobe
+	sudo -n ! type nbd-client > /dev/null 2>&1 && _messagePlain_bad 'fail: missing: nbd-client' && _messageFAIL
+	! type qemu-nbd > /dev/null 2>&1 && _messagePlain_bad 'fail: missing: qemu nbd' && _messageFAIL
 	
-	sudo -n gparted /dev/nbd0
+	! sudo -n modprobe nbd && _messagePlain_bad 'fail: modprobe nbd' && _messageFAIL
 	
-	sudo -n qemu-nbd -d /dev/nbd0
+	if ! sudo -n "$scriptAbsoluteLocation" _nbd-available_vbox "$@"
+	then
+		_messagePlain_bad 'fail: _nbd-available: '"$@"
+		_messageFAIL
+	fi
 }
 
 #No production use.
+# DANGER: Take care to ensure neither "vm.vdi" nor "/dev/nbd7" are not in use.
+# WARNING: Not recommended. Convert to raw img and use dd/gparted as needed.
+# DANGER: Not tested.
+_vdi_gparted() {
+	! _check_nbd_vbox /dev/nbd7 && _messageFAIL
+	
+	sudo -n qemu-nbd -c /dev/nbd7 "$scriptLocal"/vm.vdi
+	
+	sudo -n partprobe
+	
+	sudo -n gparted /dev/nbd7
+	
+	sudo -n qemu-nbd -d /dev/nbd7
+}
+
+#No production use.
+# DANGER: Take care to ensure neither "vm.vdi", "/dev/nbd6", nor "/dev/nbd7" are not in use.
+# WARNING: Not recommended. Convert to raw img and use dd/gparted as needed.
+# DANGER: Not tested.
 _vdi_resize() {
+	! _check_nbd_vbox /dev/nbd7 && _messageFAIL
+	! _check_nbd_vbox /dev/nbd6 && _messageFAIL
+	
 	mv "$scriptLocal"/vm.vdi "$scriptLocal"/vm-big.vdi
 	
 	#Accommodates 8024MiB.
 	VBoxManage createhd --filename "$scriptLocal"/vm-small.vdi --size 8512
 	
 	sudo -n modprobe nbd max_part=15
-	sudo -n qemu-nbd -c /dev/nbd0 "$scriptLocal"/vm-big.vdi
-	sudo -n qemu-nbd -c /dev/nbd1 "$scriptLocal"/vm-small.vdi
+	sudo -n qemu-nbd -c /dev/nbd7 "$scriptLocal"/vm-big.vdi
+	sudo -n qemu-nbd -c /dev/nbd6 "$scriptLocal"/vm-small.vdi
 	sudo -n partprobe
 	
-	#sudo -n dd if=/dev/nbd0 of=/dev/nbd1 bs=446 count=1
-	sudo -n dd if=/dev/nbd0 of=/dev/nbd1 bs=1M count=8512
+	#sudo -n dd if=/dev/nbd7 of=/dev/nbd6 bs=446 count=1
+	sudo -n dd if=/dev/nbd7 of=/dev/nbd6 bs=1M count=8512
 	sudo -n partprobe
 	
 	
@@ -12438,10 +14506,10 @@ _vdi_resize() {
 	
 	
 	
-	sudo -n gparted /dev/nbd0 /dev/nbd1
+	sudo -n gparted /dev/nbd7 /dev/nbd6
 	
-	sudo -n qemu-nbd -d /dev/nbd0
-	sudo -n qemu-nbd -d /dev/nbd1
+	sudo -n qemu-nbd -d /dev/nbd7
+	sudo -n qemu-nbd -d /dev/nbd6
 	
 	mv "$scriptLocal"/vm-small.vdi "$scriptLocal"/vm.vdi
 	
@@ -12564,7 +14632,7 @@ _docker_deleteLocalAll() {
 
 
 _test_docker_mkimage() {
-	_getDep "debootstrap"
+	_wantGetDep "debootstrap"
 }
 
 _create_docker_mkimage_sequence() {
@@ -13405,7 +15473,7 @@ _dockerRun() {
 }
 
 _test_gparted() {
-	_getDep gparted
+	_wantGetDep gparted
 }
 
 _gparted_sequence() {
@@ -13471,15 +15539,817 @@ _gparted() {
 	"$scriptAbsoluteLocation" _gparted_sequence
 }
 
+_kernelConfig_list_here() {
+	cat << CZXWXcRMTo8EmM8i4d
+
+
+
+CZXWXcRMTo8EmM8i4d
+}
+
+
+
+
+
+_kernelConfig_reject-comments() {
+	grep -v '^\#\|\#'
+}
+
+_kernelConfig_request() {
+	local current_kernelConfig_statement
+	current_kernelConfig_statement=$(cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=' | tr -dc 'a-zA-Z0-9\=\_')
+	
+	_messagePlain_request 'hazard: '"$1"': '"$current_kernelConfig_statement"
+}
+
+
+_kernelConfig_require-yes() {
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=y' > /dev/null 2>&1 && return 0
+	return 1
+}
+
+_kernelConfig_require-module-or-yes() {
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=m' > /dev/null 2>&1 && return 0
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=y' > /dev/null 2>&1 && return 0
+	return 1
+}
+
+# DANGER: Currently assuming lack of an entry is equivalent to option set as '=n' with make menuconfig or similar.
+_kernelConfig_require-no() {
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=m' > /dev/null 2>&1 && return 1
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=y' > /dev/null 2>&1 && return 1
+	return 0
+}
+
+
+_kernelConfig_warn-y__() {
+	_kernelConfig_require-yes "$1" && return 0
+	_messagePlain_warn 'warn: not:    Y: '"$1"
+	export kernelConfig_warn='true'
+	return 1
+}
+
+_kernelConfig_warn-y_m() {
+	_kernelConfig_require-module-or-yes "$1" && return 0
+	_messagePlain_warn 'warn: not:  M/Y: '"$1"
+	export kernelConfig_warn='true'
+	return 1
+}
+
+_kernelConfig_warn-n__() {
+	_kernelConfig_require-no "$1" && return 0
+	_messagePlain_warn 'warn: not:    N: '"$1"
+	export kernelConfig_warn='true'
+	return 1
+}
+
+_kernelConfig_warn-any() {
+	_kernelConfig_warn-y_m "$1"
+	_kernelConfig_warn-n__ "$1"
+}
+
+_kernelConfig__bad-y__() {
+	_kernelConfig_require-yes "$1" && return 0
+	_messagePlain_bad 'bad: not:     Y: '"$1"
+	export kernelConfig_bad='true'
+	return 1
+}
+
+_kernelConfig__bad-y_m() {
+	_kernelConfig_require-module-or-yes "$1" && return 0
+	_messagePlain_bad 'bad: not:   M/Y: '"$1"
+	export kernelConfig_bad='true'
+	return 1
+}
+
+_kernelConfig__bad-n__() {
+	_kernelConfig_require-no "$1" && return 0
+	_messagePlain_bad 'bad: not:     N: '"$1"
+	export kernelConfig_bad='true'
+	return 1
+}
+
+_kernelConfig_require-tradeoff-legacy() {
+	_messagePlain_nominal 'kernelConfig: tradeoff-legacy'
+	_messagePlain_request 'Carefully evaluate '\''tradeoff-legacy'\'' for specific use cases.'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-n__ LEGACY_VSYSCALL_EMULATE
+}
+
+# WARNING: Risk must be evaluated for specific use cases.
+# WARNING: Insecure.
+# Standalone simulators (eg. flight sim):
+# * May have hard real-time frame latency limits within 10% of the fastest avaialble from a commercially avaialble CPU.
+# * May be severely single-thread CPU constrained.
+# * May have real-time workloads exactly matching those suffering half performance due to security mitigations.
+# * May not require real-time security mitigations.
+# Disabling hardening may as much as double performance for some workloads.
+# https://www.phoronix.com/scan.php?page=article&item=linux-retpoline-benchmarks&num=2
+# https://www.phoronix.com/scan.php?page=article&item=linux-416early-spectremelt&num=4
+_kernelConfig_require-tradeoff-perform() {
+	_messagePlain_nominal 'kernelConfig: tradeoff-perform'
+	_messagePlain_request 'Carefully evaluate '\''tradeoff-perform'\'' for specific use cases.'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-n__ CONFIG_RETPOLINE
+	_kernelConfig__bad-n__ CONFIG_PAGE_TABLE_ISOLATION
+	_kernelConfig__bad-n__ CONFIG_X86_SMAP
+	
+	_kernelConfig_warn-n__ AMD_MEM_ENCRYPT
+	
+	_kernelConfig__bad-y__ CONFIG_X86_INTEL_TSX_MODE_ON
+}
+
+# WARNING: Risk must be evaluated for specific use cases.
+# WARNING: BREAKS some high-performance real-time applicatons (eg. flight sim, VR, AR).
+# Standalone simulators (eg. flight sim):
+# * May have hard real-time frame latency limits within 10% of the fastest avaialble from a commercially avaialble CPU.
+# * May be severely single-thread CPU constrained.
+# * May have real-time workloads exactly matching those suffering half performance due to security mitigations.
+# * May not require real-time security mitigations.
+# Disabling hardening may as much as double performance for some workloads.
+# https://www.phoronix.com/scan.php?page=article&item=linux-retpoline-benchmarks&num=2
+# https://www.phoronix.com/scan.php?page=article&item=linux-416early-spectremelt&num=4
+_kernelConfig_require-tradeoff-harden() {
+	_messagePlain_nominal 'kernelConfig: tradeoff-harden'
+	_messagePlain_request 'Carefully evaluate '\''tradeoff-harden'\'' for specific use cases.'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-y__ CONFIG_RETPOLINE
+	_kernelConfig__bad-y__ CONFIG_PAGE_TABLE_ISOLATION
+	_kernelConfig__bad-y__ CONFIG_X86_SMAP
+	
+	# Uncertain.
+	#_kernelConfig_warn-y__ AMD_MEM_ENCRYPT
+	
+	_kernelConfig__bad-y__ CONFIG_X86_INTEL_TSX_MODE_OFF
+}
+
+# ATTENTION: Override with 'ops.sh' or similar.
+_kernelConfig_require-tradeoff() {
+	_kernelConfig_require-tradeoff-legacy "$@"
+	
+	
+	[[ "$kernelConfig_tradeoff_perform" == "" ]] && export kernelConfig_tradeoff_perform='false'
+	
+	if [[ "$kernelConfig_tradeoff_perform" == 'true' ]]
+	then
+		_kernelConfig_require-tradeoff-perform "$@"
+		return
+	fi
+	
+	_kernelConfig_require-tradeoff-harden "$@"
+	return
+}
+
+# Based on kernel config documentation and Debian default config.
+_kernelConfig_require-virtualization-accessory() {
+	_messagePlain_nominal 'kernelConfig: virtualization-accessory'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig_warn-y_m CONFIG_KVM
+	_kernelConfig_warn-y_m CONFIG_KVM_INTEL
+	_kernelConfig_warn-y_m CONFIG_KVM_AMD
+	
+	_kernelConfig_warn-y__ CONFIG_KVM_AMD_SEV
+	
+	_kernelConfig_warn-y_m CONFIG_VHOST_NET
+	_kernelConfig_warn-y_m CONFIG_VHOST_SCSI
+	_kernelConfig_warn-y_m CONFIG_VHOST_VSOCK
+	
+	_kernelConfig__bad-y_m DRM_VMWGFX
+	
+	_kernelConfig__bad-n__ CONFIG_VBOXGUEST
+	_kernelConfig__bad-n__ CONFIG_DRM_VBOXVIDEO
+	
+	_kernelConfig_warn-y__ VIRTIO_MENU
+	_kernelConfig_warn-y__ CONFIG_VIRTIO_PCI
+	_kernelConfig_warn-y__ CONFIG_VIRTIO_PCI_LEGACY
+	_kernelConfig__bad-y_m CONFIG_VIRTIO_BALLOON
+	_kernelConfig__bad-y_m CONFIG_VIRTIO_INPUT
+	_kernelConfig__bad-y_m CONFIG_VIRTIO_MMIO
+	_kernelConfig_warn-y__ CONFIG_VIRTIO_MMIO_CMDLINE_DEVICES
+	
+	_kernelConfig_warn-y_m CONFIG_DRM_VIRTIO_GPU
+	
+	# Uncertain. Apparently new feature.
+	_kernelConfig_warn-y_m CONFIG_VIRTIO_FS
+	
+	_kernelConfig_warn-y_m CONFIG_HYPERV
+	_kernelConfig_warn-y_m CONFIG_HYPERV_UTILS
+	_kernelConfig_warn-y_m CONFIG_HYPERV_BALLOON
+	
+	_kernelConfig_warn-y__ CONFIG_XEN_BALLOON
+	_kernelConfig_warn-y__ CONFIG_XEN_BALLOON_MEMORY_HOTPLUG
+	_kernelConfig_warn-y__ CONFIG_XEN_SCRUB_PAGES_DEFAULT
+	_kernelConfig__bad-y_m CONFIG_XEN_DEV_EVTCHN
+	_kernelConfig_warn-y__ CONFIG_XEN_BACKEND
+	_kernelConfig__bad-y_m CONFIG_XENFS
+	_kernelConfig_warn-y__ CONFIG_XEN_COMPAT_XENFS
+	_kernelConfig_warn-y__ CONFIG_XEN_SYS_HYPERVISOR
+	_kernelConfig__bad-y_m CONFIG_XEN_SYS_HYPERVISOR
+	_kernelConfig__bad-y_m CONFIG_XEN_GRANT_DEV_ALLOC
+	_kernelConfig__bad-y_m CONFIG_XEN_PCIDEV_BACKEND
+	_kernelConfig__bad-y_m CONFIG_XEN_SCSI_BACKEND
+	_kernelConfig__bad-y_m CONFIG_XEN_ACPI_PROCESSOR
+	_kernelConfig_warn-y__ CONFIG_XEN_MCE_LOG
+	_kernelConfig_warn-y__ CONFIG_XEN_SYMS
+	
+	_kernelConfig_warn-y__ CONFIG_DRM_XEN
+	
+	# Uncertain.
+	#_kernelConfig_warn-n__ CONFIG_XEN_SELFBALLOONING
+	#_kernelConfig_warn-n__ CONFIG_IOMMU_DEFAULT_PASSTHROUGH
+	#_kernelConfig_warn-n__ CONFIG_INTEL_IOMMU_DEFAULT_ON
+}
+
+# https://wiki.gentoo.org/wiki/VirtualBox
+_kernelConfig_require-virtualbox() {
+	_messagePlain_nominal 'kernelConfig: virtualbox'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-y__ CONFIG_X86_SYSFB
+	
+	_kernelConfig__bad-y__ CONFIG_ATA
+	_kernelConfig__bad-y__ CONFIG_SATA_AHCI
+	_kernelConfig__bad-y__ CONFIG_ATA_SFF
+	_kernelConfig__bad-y__ CONFIG_ATA_BMDMA
+	_kernelConfig__bad-y__ CONFIG_ATA_PIIX
+	
+	_kernelConfig__bad-y__ CONFIG_NETDEVICES
+	_kernelConfig__bad-y__ CONFIG_ETHERNET
+	_kernelConfig__bad-y__ CONFIG_NET_VENDOR_INTEL
+	_kernelConfig__bad-y__ CONFIG_E1000
+	
+	_kernelConfig__bad-y__ CONFIG_INPUT_KEYBOARD
+	_kernelConfig__bad-y__ CONFIG_KEYBOARD_ATKBD
+	_kernelConfig__bad-y__ CONFIG_INPUT_MOUSE
+	_kernelConfig__bad-y__ CONFIG_MOUSE_PS2
+	
+	_kernelConfig__bad-y__ CONFIG_DRM
+	_kernelConfig__bad-y__ CONFIG_DRM_FBDEV_EMULATION
+	_kernelConfig__bad-y__ CONFIG_DRM_VIRTIO_GPU
+	
+	_kernelConfig__bad-y__ CONFIG_FB
+	_kernelConfig__bad-y__ CONFIG_FIRMWARE_EDID
+	_kernelConfig__bad-y__ CONFIG_FB_SIMPLE
+	
+	_kernelConfig__bad-y__ CONFIG_FRAMEBUFFER_CONSOLE
+	_kernelConfig__bad-y__ CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY
+	
+	_kernelConfig__bad-y__ CONFIG_SOUND
+	_kernelConfig__bad-y__ CONFIG_SND
+	_kernelConfig__bad-y__ CONFIG_SND_PCI
+	_kernelConfig__bad-y__ CONFIG_SND_INTEL8X0
+	
+	_kernelConfig__bad-y__ CONFIG_USB_SUPPORT
+	_kernelConfig__bad-y__ CONFIG_USB_XHCI_HCD
+	_kernelConfig__bad-y__ CONFIG_USB_EHCI_HCD
+}
+
+
+# https://wiki.gentoo.org/wiki/Handbook:AMD64/Full/Installation#Activating_required_options
+_kernelConfig_require-boot() {
+	_messagePlain_nominal 'kernelConfig: boot'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-y__ CONFIG_FW_LOADER
+	#_kernelConfig__bad-y__ CONFIG_FIRMWARE_IN_KERNEL
+	
+	_kernelConfig__bad-y__ CONFIG_DEVTMPFS
+	_kernelConfig__bad-y__ CONFIG_DEVTMPFS_MOUNT
+	_kernelConfig__bad-y__ CONFIG_BLK_DEV_SD
+	
+	
+	_kernelConfig__bad-y__ CONFIG_EXT4_FS
+	_kernelConfig__bad-y__ CONFIG_EXT4_FS_POSIX_ACL
+	_kernelConfig__bad-y__ CONFIG_EXT4_FS_SECURITY
+	#_kernelConfig__bad-y__ CONFIG_EXT4_ENCRYPTION
+	
+	if ! _kernelConfig_warn-y__ CONFIG_EXT4_USE_FOR_EXT2 > /dev/null 2>&1
+	then
+		_kernelConfig__bad-y__ CONFIG_EXT2_FS
+		_kernelConfig__bad-y__ CONFIG_EXT3_FS
+		_kernelConfig__bad-y__ CONFIG_EXT3_FS_POSIX_ACL
+		_kernelConfig__bad-y__ CONFIG_EXT3_FS_SECURITY
+	else
+		_kernelConfig_warn-y__ CONFIG_EXT4_USE_FOR_EXT2
+	fi
+	
+	_kernelConfig__bad-y__ CONFIG_MSDOS_FS
+	_kernelConfig__bad-y__ CONFIG_VFAT_FS
+	
+	_kernelConfig__bad-y__ CONFIG_PROC_FS
+	_kernelConfig__bad-y__ CONFIG_TMPFS
+	
+	_kernelConfig__bad-y__ CONFIG_PPP
+	_kernelConfig__bad-y__ CONFIG_PPP_ASYNC
+	_kernelConfig__bad-y__ CONFIG_PPP_SYNC_TTY
+	
+	_kernelConfig__bad-y__ CONFIG_SMP
+	
+	# https://wiki.gentoo.org/wiki/Kernel/Gentoo_Kernel_Configuration_Guide
+	# 'Support for Host-side USB'
+	_kernelConfig__bad-y__ CONFIG_USB_SUPPORT
+	_kernelConfig__bad-y__ CONFIG_USB_XHCI_HCD
+	_kernelConfig__bad-y__ CONFIG_USB_EHCI_HCD
+	_kernelConfig__bad-y__ CONFIG_USB_OHCI_HCD
+	
+	_kernelConfig__bad-y__ CONFIG_HID
+	_kernelConfig__bad-y__ CONFIG_HID_GENERIC
+	_kernelConfig__bad-y__ CONFIG_HID_BATTERY_STRENGTH
+	_kernelConfig__bad-y__ CONFIG_USB_HID
+	
+	_kernelConfig__bad-y__ CONFIG_PARTITION_ADVANCED
+	_kernelConfig__bad-y__ CONFIG_EFI_PARTITION
+	
+	_kernelConfig__bad-y__ CONFIG_EFI
+	_kernelConfig__bad-y__ CONFIG_EFI_STUB
+	_kernelConfig__bad-y__ CONFIG_EFI_MIXED
+	
+	_kernelConfig__bad-y__ CONFIG_EFI_VARS
+}
+
+
+_kernelConfig_require-arch-x64() {
+	_messagePlain_nominal 'kernelConfig: arch-x64'
+	export kernelConfig_file="$1"
+	
+	# CRITICAL! Expected to accommodate modern CPUs.
+	_messagePlain_request 'request: -march=sandybridge -mtune=skylake'
+	_messagePlain_request 'export KCFLAGS="-O2 -march=sandybridge -mtune=skylake -pipe"'
+	_messagePlain_request 'export KCPPFLAGS="-O2 -march=sandybridge -mtune=skylake -pipe"'
+	
+	_kernelConfig_warn-n__ CONFIG_GENERIC_CPU
+	
+	_kernelConfig_request MCORE2
+	
+	_kernelConfig_warn-y__ CONFIG_X86_MCE
+	_kernelConfig_warn-y__ CONFIG_X86_MCE_INTEL
+	_kernelConfig_warn-y__ CONFIG_X86_MCE_AMD
+	
+	# Uncertain. May or may not improve performance.
+	_kernelConfig_warn-y__ CONFIG_INTEL_RDT
+	
+	# Maintenance may be easier with this enabled.
+	_kernelConfig_warn-y_m CONFIG_EFIVAR_FS
+	
+	# Presumably mixing entropy may be preferable.
+	_kernelConfig__bad-n__ CONFIG_RANDOM_TRUST_CPU
+	
+	
+	# If possible, it may be desirable to check clocksource defaults.
+	
+	_kernelConfig__bad-y__ X86_TSC
+	
+	_kernelConfig_warn-y__ HPET
+	_kernelConfig_warn-y__ HPET_EMULATE_RTC
+	_kernelConfig_warn-y__ HPET_MMAP
+	_kernelConfig_warn-y__ HPET_MMAP_DEFAULT
+	_kernelConfig_warn-y__ HPET_TIMER
+	
+	
+	_kernelConfig__bad-y__ CONFIG_IA32_EMULATION
+	_kernelConfig_warn-n__ IA32_AOUT
+	_kernelConfig__bad-y__ CONFIG_X86_X32
+	
+	_kernelConfig__bad-y__ CONFIG_BINFMT_ELF
+	_kernelConfig__bad-y_m CONFIG_BINFMT_MISC
+	
+	# May not have been optional under older kernel configurations.
+	_kernelConfig__bad-y__ CONFIG_BINFMT_SCRIPT
+}
+
+_kernelConfig_require-accessory() {
+	_messagePlain_nominal 'kernelConfig: accessory'
+	export kernelConfig_file="$1"
+	
+	# May be critical to 'ss' tool functionality typically expected by Ubiquitous Bash.
+	_kernelConfig_warn-y_m CONFIG_PACKET_DIAG
+	_kernelConfig_warn-y_m CONFIG_UNIX_DIAG
+	_kernelConfig_warn-y_m CONFIG_INET_DIAG
+	_kernelConfig_warn-y_m CONFIG_NETLINK_DIAG
+	
+	# Essential for a wide variety of platforms.
+	_kernelConfig_warn-y_m CONFIG_MOUSE_PS2_TRACKPOINT
+	
+	# Common and useful GPU features.
+	_kernelConfig_warn-y_m CONFIG_DRM_RADEON
+	_kernelConfig_warn-y_m CONFIG_DRM_AMDGPU
+	_kernelConfig_warn-y_m CONFIG_DRM_I915
+	_kernelConfig_warn-y_m CONFIG_DRM_VIA
+	_kernelConfig_warn-y_m CONFIG_DRM_NOUVEAU
+	
+	# Uncertain.
+	#_kernelConfig_warn-y__ CONFIG_IRQ_REMAP
+	
+	# TODO: Accessory features which may become interesting.
+	#ACPI_HMAT
+	#PCIE_BW
+	#ACRN_GUEST
+	#XILINX SDFEC
+}
+
+_kernelConfig_require-build() {
+	_messagePlain_nominal 'kernelConfig: build'
+	export kernelConfig_file="$1"
+	
+	# May cause failure if set incorrectly.
+	if ! cat "$kernelConfig_file" | grep 'CONFIG_SYSTEM_TRUSTED_KEYS\=\"\"' > /dev/null 2>&1 && ! cat "$kernelConfig_file" | grep -v 'CONFIG_SYSTEM_TRUSTED_KEYS' > /dev/null 2>&1
+	then
+		#_messagePlain_bad 'bad: not:    Y: '"$1"
+		 _messagePlain_bad 'bad: not:    _: 'CONFIG_SYSTEM_TRUSTED_KEYS
+	fi
+	
+}
+
+# ATTENTION: As desired, ignore, or override with 'ops.sh' or similar.
+# ATTENTION: Dependency of '_kernelConfig_require-latency' .
+_kernelConfig_require-latency_frequency() {
+	# High HZ rate (ie. HZ 1000) may be preferable for machines directly rendering simulator/VR graphics.
+	# Theoretically graphics VSYNC might prefer HZ 300 or similar, as a multiple of common graphics refresh rates.
+	# 25,~29.97,30,60=300 60,72=360 60,75=300 60,80=240 32,36,64,72=576
+	# Theoretically, a setting of 250 may be beneficial for virtualization where the host kernel may be 1000 .
+	# Typically values: 250,300,1000 .
+	# https://passthroughpo.st/config_hz-how-does-it-affect-kvm/
+	# https://github.com/vmprof/vmprof-python/issues/163
+	[[ "$kernelConfig_frequency" == "" ]] && export kernelConfig_frequency=300
+	
+	
+	if ! cat "$kernelConfig_file" | grep 'HZ='"$kernelConfig_frequency" > /dev/null 2>&1
+	then
+		#_messagePlain_bad  'bad: not:     Y: '"$1"
+		#_messagePlain_warn 'warn: not:    Y: '"$1"
+		 _messagePlain_bad 'bad: not:   '"$kernelConfig_frequency"': 'HZ
+	fi
+	_kernelConfig__bad-y__ HZ_"$kernelConfig_frequency"
+}
+
+_kernelConfig_require-latency() {
+	_messagePlain_nominal 'kernelConfig: latency'
+	export kernelConfig_file="$1"
+	
+	# Uncertain. Default off per Debian config.
+	_kernelConfig_warn-n__ CONFIG_X86_GENERIC
+	
+	# CRITICAL!
+	_kernelConfig__bad-y__ CPU_FREQ_DEFAULT_GOV_ONDEMAND
+	_kernelConfig__bad-y__ CONFIG_CPU_FREQ_GOV_ONDEMAND
+	
+	# CRITICAL!
+	# CONFIG_PREEMPT is significantly more stable and compatible with third party (eg. VirtualBox) modules.
+	# CONFIG_PREEMPT_RT is significantly less likely to incurr noticeable worst-case latency.
+	# Lack of both CONFIG_PREEMPT and CONFIG_PREEMPT_RT may incurr noticeable worst-case latency.
+	_kernelConfig_request CONFIG_PREEMPT
+	_kernelConfig_request CONFIG_PREEMPT_RT
+	if ! _kernelConfig__bad-y__ CONFIG_PREEMPT_RT > /dev/null 2>&1 && ! _kernelConfig__bad-y__ CONFIG_PREEMPT > /dev/null 2>&1 
+	then
+		_kernelConfig__bad-y__ CONFIG_PREEMPT
+		_kernelConfig__bad-y__ CONFIG_PREEMPT_RT
+	fi
+	
+	_kernelConfig_require-latency_frequency "$@"
+	
+	# Dynamic/Tickless kernel *might* be the cause of irregular display updates on some platforms.
+	[[ "$kernelConfig_tickless" == "" ]] && export kernelConfig_tickless='false'
+	if [[ "$kernelConfig_tickless" == 'true' ]]
+	then
+		#_kernelConfig__bad-n__ CONFIG_HZ_PERIODIC
+		#_kernelConfig__bad-y__ CONFIG_NO_HZ
+		#_kernelConfig__bad-y__ CONFIG_NO_HZ_COMMON
+		#_kernelConfig__bad-y__ CONFIG_NO_HZ_FULL
+		_kernelConfig__bad-y__ CONFIG_NO_HZ_IDLE
+		#_kernelConfig__bad-y__ CONFIG_RCU_FAST_NO_HZ
+	else
+		_kernelConfig__bad-y__ CONFIG_HZ_PERIODIC
+		_kernelConfig__bad-n__ CONFIG_NO_HZ
+		_kernelConfig__bad-n__ CONFIG_NO_HZ_COMMON
+		_kernelConfig__bad-n__ CONFIG_NO_HZ_FULL
+		_kernelConfig__bad-n__ CONFIG_NO_HZ_IDLE
+		_kernelConfig__bad-n__ CONFIG_RCU_FAST_NO_HZ
+		
+		_kernelConfig__bad-y__ CPU_IDLE_GOV_MENU
+	fi
+	
+	# Essential.
+	_kernelConfig__bad-y__ CONFIG_LATENCYTOP
+	
+	
+	# CRITICAL!
+	_kernelConfig__bad-y__ CONFIG_CGROUP_SCHED
+	_kernelConfig__bad-y__ FAIR_GROUP_SCHED
+	_kernelConfig__bad-y__ CONFIG_CFS_BANDWIDTH
+	
+	# CRITICAL!
+	# Expected to protect single-thread interactive applications from competing multi-thread workloads.
+	_kernelConfig__bad-y__ CONFIG_SCHED_AUTOGROUP
+	
+	
+	# CRITICAL!
+	# Default cannot be set currently.
+	_messagePlain_request 'request: Set '\''bfq'\'' as default IO scheduler (strongly recommended).'
+	#_kernelConfig__bad-y__ DEFAULT_IOSCHED
+	#_kernelConfig__bad-y__ DEFAULT_BFQ
+	
+	# CRITICAL!
+	# Expected to protect interactive applications from background IO.
+	# https://www.youtube.com/watch?v=ANfqNiJVoVE
+	_kernelConfig__bad-y__ CONFIG_IOSCHED_BFQ
+	_kernelConfig__bad-y__ CONFIG_BFQ_GROUP_IOSCHED
+	
+	
+	# Uncertain.
+	# https://forum.manjaro.org/t/please-enable-writeback-throttling-by-default-linux-4-10/18135/22
+	#_kernelConfig__bad-y__ BLK_WBT
+	#_kernelConfig__bad-y__ BLK_WBT_MQ
+	#_kernelConfig__bad-y__ BLK_WBT_SQ
+	
+	
+	# https://lwn.net/Articles/789304/
+	_kernelConfig__bad-y__ CONFIG_SPARSEMEM
+	
+	
+	_kernelConfig__bad-n__ CONFIG_REFCOUNT_FULL
+	_kernelConfig__bad-n__ CONFIG_DEBUG_NOTIFIERS
+	_kernelConfig_warn-n__ CONFIG_FTRACE
+	
+	_kernelConfig__bad-y__ CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
+	
+	# CRITICAL!
+	# Lightweight kernel compression theoretically may significantly accelerate startup from slow disks.
+	_kernelConfig__bad-y__ CONFIG_KERNEL_LZO
+	
+}
+
+_kernelConfig_require-memory() {
+	_messagePlain_nominal 'kernelConfig: memory'
+	export kernelConfig_file="$1"
+	
+	# Uncertain.
+	# https://fa.linux.kernel.narkive.com/CNnVwDlb/hack-bench-regression-with-config-slub-cpu-partial-disabled-info-only
+	_kernelConfig_warn-y__ CONFIG_SLUB_CPU_PARTIAL
+	
+	# Uncertain.
+	_kernelConfig_warn-y__ CONFIG_TRANSPARENT_HUGEPAGE
+	_kernelConfig_warn-y__ CONFIG_CLEANCACHE
+	_kernelConfig_warn-y__ CONFIG_FRONTSWAP
+	_kernelConfig_warn-y__ CONFIG_ZSWAP
+	
+	
+	_kernelConfig__bad-y__ CONFIG_COMPACTION
+	_kernelConfig_warn-y__ CONFIG_BALLOON_COMPACTION
+	
+	# Uncertain.
+	_kernelConfig_warn-y__ CONFIG_MEMORY_FAILURE
+	
+	# CRITICAL!
+	_kernelConfig_warn-y__ CONFIG_KSM
+}
+
+_kernelConfig_require-integration() {
+	_messagePlain_nominal 'kernelConfig: integration'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-y_m CONFIG_FUSE_FS
+	_kernelConfig__bad-y_m CONFIG_CUSE
+	_kernelConfig__bad-y__ CONFIG_OVERLAY_FS
+	_kernelConfig__bad-y_m CONFIG_NTFS_FS
+	_kernelConfig_request CONFIG_NTFS_RW
+	_kernelConfig__bad-y__ CONFIG_MSDOS_FS
+	_kernelConfig__bad-y__ CONFIG_VFAT_FS
+	_kernelConfig__bad-y__ CONFIG_MSDOS_PARTITION
+	
+	# TODO: LiveCD UnionFS or similar boot requirements.
+	
+	# Gentoo specific. Start with "gentoo-sources" if possible.
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX_UDEV
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX_PORTAGE
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX_INIT_SCRIPT
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX_INIT_SYSTEMD
+}
+
+# Recommended by docker ebuild during installation under Gentoo.
+_kernelConfig_require-investigation_docker() {
+	_messagePlain_nominal 'kernelConfig: investigation: docker'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig_warn-y__ CONFIG_MEMCG_SWAP_ENABLED
+	_kernelConfig_warn-y__ CONFIG_CGROUP_HUGETLB
+	_kernelConfig_warn-y__ CONFIG_RT_GROUP_SCHED
+	
+	true
+}
+
+
+# ATTENTION: Insufficiently investigated stuff to think about. Unknown consequences.
+_kernelConfig_require-investigation() {
+	_messagePlain_nominal 'kernelConfig: investigation'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig_warn-any ACPI_HMAT
+	_kernelConfig_warn-any PCIE_BW
+	
+	_kernelConfig_warn-any CONFIG_UCLAMP_TASK
+	
+	_kernelConfig_warn-any CPU_IDLE_GOV_TEO
+	
+	_kernelConfig_warn-any LOCK_EVENT_COUNTS
+	
+	
+	_kernelConfig_require-investigation_docker "$@"
+	_kernelConfig_require-investigation_prog "$@"
+	true
+}
+
+
+_kernelConfig_require-investigation_prog() {
+	_messagePlain_nominal 'kernelConfig: investigation: prog'
+	export kernelConfig_file="$1"
+	
+	true
+}
+
+
+
+
+
+
+_kernelConfig_request_build() {
+	_messagePlain_request 'request: make menuconfig'
+	
+	_messagePlain_request 'request: make -j $(nproc)'
+	
+	# WARNING: Building debian kernel packages from Gentoo may be complex.
+	#https://forums.gentoo.org/viewtopic-t-1096872-start-0.html
+	#_messagePlain_request 'emerge dpkg fakeroot bc kmod cpio ; touch /var/lib/dpkg/status'
+	
+	_messagePlain_request 'request: make deb-pkg -j $(nproc)'
+}
+
+
+# ATTENTION: As desired, ignore, or override with 'ops.sh' or similar.
+_kernelConfig_panel() {
+	_messageNormal 'kernelConfig: panel'
+	
+	[[ "$kernelConfig_tradeoff_perform" == "" ]] && export kernelConfig_tradeoff_perform='false'
+	[[ "$kernelConfig_frequency" == "" ]] && export kernelConfig_frequency=300
+	[[ "$kernelConfig_tickless" == "" ]] && export kernelConfig_tickless='false'
+	
+	_kernelConfig_require-tradeoff "$@"
+	
+	_kernelConfig_require-virtualization-accessory "$@"
+	
+	_kernelConfig_require-virtualbox "$@"
+	
+	_kernelConfig_require-boot "$@"
+	
+	_kernelConfig_require-arch-x64 "$@"
+	
+	_kernelConfig_require-accessory "$@"
+	
+	_kernelConfig_require-build "$@"
+	
+	_kernelConfig_require-latency "$@"
+	
+	_kernelConfig_require-memory "$@"
+	
+	_kernelConfig_require-integration "$@"
+	
+	_kernelConfig_require-investigation "$@"
+	
+	
+	_kernelConfig_request_build
+}
+
+# ATTENTION: As desired, ignore, or override with 'ops.sh' or similar.
+_kernelConfig_mobile() {
+	_messageNormal 'kernelConfig: mobile'
+	
+	[[ "$kernelConfig_tradeoff_perform" == "" ]] && export kernelConfig_tradeoff_perform='false'
+	[[ "$kernelConfig_frequency" == "" ]] && export kernelConfig_frequency=300
+	[[ "$kernelConfig_tickless" == "" ]] && export kernelConfig_tickless='true'
+	
+	_kernelConfig_require-tradeoff "$@"
+	
+	_kernelConfig_require-virtualization-accessory "$@"
+	
+	_kernelConfig_require-virtualbox "$@"
+	
+	_kernelConfig_require-boot "$@"
+	
+	_kernelConfig_require-arch-x64 "$@"
+	
+	_kernelConfig_require-accessory "$@"
+	
+	_kernelConfig_require-build "$@"
+	
+	_kernelConfig_require-latency "$@"
+	
+	_kernelConfig_require-memory "$@"
+	
+	_kernelConfig_require-integration "$@"
+	
+	_kernelConfig_require-investigation "$@"
+	
+	
+	_kernelConfig_request_build
+}
+
+# ATTENTION: As desired, ignore, or override with 'ops.sh' or similar.
+_kernelConfig_desktop() {
+	_messageNormal 'kernelConfig: desktop'
+	
+	[[ "$kernelConfig_tradeoff_perform" == "" ]] && export kernelConfig_tradeoff_perform='false'
+	[[ "$kernelConfig_frequency" == "" ]] && export kernelConfig_frequency=1000
+	[[ "$kernelConfig_tickless" == "" ]] && export kernelConfig_tickless='false'
+	
+	_kernelConfig_require-tradeoff "$@"
+	
+	_kernelConfig_require-virtualization-accessory "$@"
+	
+	_kernelConfig_require-virtualbox "$@"
+	
+	_kernelConfig_require-boot "$@"
+	
+	_kernelConfig_require-arch-x64 "$@"
+	
+	_kernelConfig_require-accessory "$@"
+	
+	_kernelConfig_require-build "$@"
+	
+	_kernelConfig_require-latency "$@"
+	
+	_kernelConfig_require-memory "$@"
+	
+	_kernelConfig_require-integration "$@"
+	
+	_kernelConfig_require-investigation "$@"
+	
+	
+	_kernelConfig_request_build
+}
+
+
+# "$1" == alternateRootPrefix
+_write_bfq() {
+	_messagePlain_nominal 'write_bfq: init'
+	
+	_mustGetSudo
+	
+	
+	_messagePlain_nominal 'write_bfq: write'
+	
+	sudo -n cat << 'CZXWXcRMTo8EmM8i4d' | sudo tee "$1"'/etc/modules-load.d/bfq-'"$ubiquitiousBashIDshort"'.conf' > /dev/null
+bfq
+
+CZXWXcRMTo8EmM8i4d
+
+
+	cat << 'CZXWXcRMTo8EmM8i4d' | sudo tee "$1"'/etc/udev/rules.d/60-scheduler-'"$ubiquitiousBashIDshort"'.rules' > /dev/null
+ACTION=="add|change", KERNEL=="sd*[!0-9]|sr*", ATTR{queue/scheduler}="bfq"
+ACTION=="add|change", KERNEL=="nvme[0-9]n[0-9]", ATTR{queue/scheduler}="bfq"
+
+CZXWXcRMTo8EmM8i4d
+
+	_messagePlain_good 'write_bfq: success'
+
+}
+
+
+
+
+
 _setupUbiquitous_here() {
 	cat << CZXWXcRMTo8EmM8i4d
-type sudo > /dev/null 2>&1 && groups | grep -E 'wheel|sudo' > /dev/null 2>&1 && sudo -n renice -n -10 -p \$\$ > /dev/null 2>&1
+
+if type sudo > /dev/null 2>&1 && groups | grep -E 'wheel|sudo' > /dev/null 2>&1
+then
+	# Greater or equal, '_priority_critical_pid_root' .
+	sudo -n renice -n -15 -p \$\$ > /dev/null 2>&1
+	sudo -n ionice -c 2 -n 2 -p \$\$ > /dev/null 2>&1
+fi
+# ^
+# Ensures admin user shell startup, including Ubiquitous Bash, is relatively quick under heavy system load.
+# Near-realtime priority may be acceptable, due to reliability of relevant Ubiquitous Bash functions.
+# WARNING: Do NOT prioritize highly enough to interfere with embedded hard realtime processes.
+
 
 export profileScriptLocation="$ubcoreUBdir"/ubiquitous_bash.sh
 export profileScriptFolder="$ubcoreUBdir"
 [[ "\$scriptAbsoluteLocation" != "" ]] && . "\$scriptAbsoluteLocation" --parent _importShortcuts
 [[ "\$scriptAbsoluteLocation" == "" ]] && . "\$profileScriptLocation" --profile _importShortcuts
 
+
+# Returns priority to normal.
+# Greater or equal, '_priority_app_pid_root' .
+#ionice -c 2 -n 3 -p \$\$
+#renice -n -5 -p \$\$ > /dev/null 2>&1
+
+# Returns priority to normal.
+# Greater or equal, '_priority_app_pid' .
+ionice -c 2 -n 4 -p \$\$
 renice -n 0 -p \$\$ > /dev/null 2>&1
 
 true
@@ -13651,23 +16521,252 @@ _resetUbiquitous() {
 _refresh_anchors_ubiquitous() {
 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_ubide
 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_ubdb
+	
+	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_test
 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_true
 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_false
+	
+	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_test.bat
+	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_true.bat
+	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_false.bat
+}
+
+# EXAMPLE ONLY.
+# _refresh_anchors() {
+# 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_true
+# }
+
+
+# CAUTION: Anchor scripts MUST include code to ignore '--' suffix specific software name convention!
+# CAUTION: ONLY intended to be used either with generic software, or anchors following '--' suffix specific software name convention!
+# WARNING: DO NOT enable in "core.sh". Intended to be enabled by "_local/ops.sh".
+# ATTENTION: Set "$ub_anchor_specificSoftwareName" or similar in "ops.sh".
+# ATTENTION: Set ub_anchor_user='true' or similar in "ops.sh".
+#export ub_anchor_specificSoftwareName='experimental'
+#export ub_anchor_user="true"
+_set_refresh_anchors_specific() {
+	export ub_anchor_suffix=
+	export ub_anchor_suffix
+	
+	[[ "$ub_anchor_specificSoftwareName" == "" ]] && return 0
+	
+	export ub_anchor_suffix='--'"$ub_anchor_specificSoftwareName"
+	
+	return 0
+}
+
+_refresh_anchors_specific_single_procedure() {
+	[[ "$ub_anchor_specificSoftwareName" == "" ]] && return 1
+	
+	_set_refresh_anchors_specific
+	
+	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/"$1""$ub_anchor_suffix"
+	
+	return 0
+}
+# Assumes user has included "$HOME"/bin in their "$PATH".
+_refresh_anchors_user_single_procedure() {
+	[[ "$ub_anchor_user" != 'true' ]] && return 1
+	
+	_set_refresh_anchors_specific
+	! mkdir -p "$HOME"/bin && return 1
+	
+	
+	# WARNING: Default to replacement. Rare case considered acceptable for several reasons.
+	# Negligible damage potential - all replaced files are symlinks or anchors.
+	# Limited to specifically named anchor symlinks, defined in "_associate_anchors_request", typically overloaded with 'core.sh' or similar.
+	# Usually requested 'manually' through "_setup" or "_anchor", even if called through a multi-installation request.
+	# Incorrectly calling a moved, uninstalled, or otherwise incorrect previous version, of linked software, is anticipated to be a more commonly impose greater risk.
+	#ln -s "$scriptAbsoluteFolder"/"$1""$ub_anchor_suffix" "$HOME"/bin/ > /dev/null 2>&1
+	ln -sf "$scriptAbsoluteFolder"/"$1""$ub_anchor_suffix" "$HOME"/bin/
+	
+	return 0
+}
+
+# ATTENTION: Overload with 'core.sh' or similar.
+# # EXAMPLE ONLY.
+# _refresh_anchors_specific() {
+# 	_refresh_anchors_specific_single_procedure _true
+# }
+# # EXAMPLE ONLY.
+# _refresh_anchors_user() {
+# 	_refresh_anchors_user_single_procedure _true
+# }
+
+
+# ATTENTION: Overload with 'core'sh' or similar.
+# _associate_anchors_request() {
+# 	if type "_refresh_anchors_user" > /dev/null 2>&1
+# 	then
+# 		_tryExec "_refresh_anchors_user"
+# 		#return
+# 	fi
+# 	
+# 	_messagePlain_request 'association: dir'
+# 	echo _scope_konsole"$ub_anchor_suffix"
+# 	
+# 	_messagePlain_request 'association: dir'
+# 	echo _scope_designer_designeride"$ub_anchor_suffix"
+# 	
+# 	_messagePlain_request 'association: dir, *.ino'
+# 	echo _designer_generate"$ub_anchor_suffix"
+# }
+
+
+
+# ATTENTION: Overload with 'core.sh' or similar.
+# WARNING: May become default behavior.
+_anchor_autoupgrade() {
+	local currentScriptBaseName
+	currentScriptBaseName=$(basename $scriptAbsoluteLocation)
+	[[ "$currentScriptBaseName" != "ubiquitous_bash.sh" ]] && return 1
+	
+	[[ "$ub_anchor_autoupgrade" != 'true' ]] && return 0
+	
+	_findUbiquitous
+	
+	[[ -e "$ubiquitiousLibDir"/_anchor ]] && cp -a "$ubiquitiousLibDir"/_anchor "$scriptAbsoluteFolder"/_anchor
+}
+
+_anchor_configure() {
+	export ubAnchorTemplateCurrent="$scriptAbsoluteFolder"/_anchor
+	[[ "$1" != "" ]] && export ubAnchorTemplateCurrent="$1"
+	
+	! [[ -e "$ubAnchorTemplateCurrent" ]] && return 1
+	
+	#https://superuser.com/questions/450868/what-is-the-simplest-scriptable-way-to-check-whether-a-shell-variable-is-exporte
+	! [ "$(bash -c 'echo ${objectName}')" ] && return 1
+	
+	
+	rm -f "$scriptAbsoluteFolder"/_anchor.tmp "$scriptAbsoluteFolder"/_anchor.tmp1 "$scriptAbsoluteFolder"/_anchor.tmp2 > /dev/null 2>&1
+	cp "$ubAnchorTemplateCurrent" "$scriptAbsoluteFolder"/_anchor.tmp
+	cp "$ubAnchorTemplateCurrent" "$scriptAbsoluteFolder"/_anchor.tmp1
+	cp "$ubAnchorTemplateCurrent" "$scriptAbsoluteFolder"/_anchor.tmp2
+	
+	
+	perl -p -e 's/export anchorSourceDir=.*/export anchorSourceDir="$ENV{objectName}"/g' "$scriptAbsoluteFolder"/_anchor.tmp > "$scriptAbsoluteFolder"/_anchor.tmp1
+	
+	perl -p -e 's/SET "MSWanchorSourceDir=.*/SET "MSWanchorSourceDir=$ENV{objectName}"/g' "$scriptAbsoluteFolder"/_anchor.tmp1 > "$scriptAbsoluteFolder"/_anchor.tmp2
+	
+	
+	mv "$scriptAbsoluteFolder"/_anchor.tmp2 "$ubAnchorTemplateCurrent"
+	rm -f "$scriptAbsoluteFolder"/_anchor.tmp "$scriptAbsoluteFolder"/_anchor.tmp1 "$scriptAbsoluteFolder"/_anchor.tmp2 > /dev/null 2>&1
 }
 
 _anchor() {
+	_anchor_autoupgrade
+	
+	_anchor_configure
+	_anchor_configure "$scriptAbsoluteFolder"/_anchor.bat
+	
+	! [[ -e "$scriptAbsoluteFolder"/_anchor ]] && ! [[ -e "$scriptAbsoluteFolder"/_anchor.bat ]] && return 1
+	
 	[[ "$scriptAbsoluteFolder" == *"ubiquitous_bash" ]] && _refresh_anchors_ubiquitous
 	
 	if type "_refresh_anchors" > /dev/null 2>&1
 	then
 		_tryExec "_refresh_anchors"
-		return
+		#return
 	fi
+	
+	# CAUTION: Anchor scripts MUST include code to ignore '--' suffix specific software name convention!
+	# WARNING: DO NOT enable in "core.sh". Intended to be enabled by "_local/ops.sh".
+	if type "_refresh_anchors_specific" > /dev/null 2>&1
+	then
+		_tryExec "_refresh_anchors_specific"
+		#return
+	fi
+	
+	# CAUTION: ONLY intended to be used either with generic software, or anchors following '--' suffix specific software name convention!
+	# WARNING: DO NOT enable in "core.sh". Intended to be enabled by "_local/ops.sh".
+	if type "_refresh_anchors_user" > /dev/null 2>&1
+	then
+		_tryExec "_refresh_anchors_user"
+		#return
+	fi
+	
+	# WARNING: Calls _refresh_anchors_user . Same variables required to enable, intended to be set by "_local/ops.sh".
+	#if type "_associate_anchors_request" > /dev/null 2>&1
+	#then
+		#_tryExec "_associate_anchors_request"
+		##return
+	#fi
 	
 	return 0
 }
 
 
+
+
+_setup_renice() {
+	_messageNormal '_setup_renice'
+	
+	if [[ "$scriptAbsoluteFolder" == *'ubiquitous_bash' ]] && [[ "$1" != '--force' ]]
+	then
+		_messagePlain_bad 'bad: generic ubiquitous_bash installation detected'
+		_messageFAIL
+		_stop 1
+	fi
+	
+	
+	_messagePlain_nominal '_setup_renice: hook: ubcore'
+	local ubHome
+	ubHome="$HOME"
+	export ubcoreDir="$ubHome"/.ubcore
+	export ubcoreFile="$ubcoreDir"/.ubcorerc
+	
+	if ! [[ -e "$ubcoreFile" ]]
+	then
+		_messagePlain_warn 'fail: hook: missing: .ubcorerc'
+		return 1
+	fi
+	
+	if grep 'token_ub_renice' "$ubcoreFile" > /dev/null 2>&1
+	then
+		_messagePlain_good 'good: hook: present: .ubcorerc'
+		return 0
+	fi
+	
+	#echo '# token_ub_renice' >> "$ubcoreFile"
+	cat << CZXWXcRMTo8EmM8i4d >> "$ubcoreFile"
+
+# token_ub_renice
+if [[ "\$__overrideRecursionGuard_make" != 'true' ]] && [[ "\$__overrideKeepPriority_make" != 'true' ]] && type type > /dev/null 2>&1 && type -p make > /dev/null 2>&1
+then
+	__overrideRecursionGuard_make='true'
+	__override_make=$(type -p make 2>/dev/null)
+	make() {
+		#Greater or equal, _priority_idle_pid
+		
+ 		ionice -c 2 -n 5 -p \$\$ > /dev/null 2>&1
+		renice -n 3 -p \$\$ > /dev/null 2>&1
+		
+		"\$__override_make" "\$@"
+	}
+fi
+
+CZXWXcRMTo8EmM8i4d
+	
+	if grep 'token_ub_renice' "$ubcoreFile" > /dev/null 2>&1
+	then
+		_messagePlain_good 'good: hook: present: .ubcorerc'
+		#return 0
+	else
+		_messagePlain_bad 'fail: hook: missing: token: .ubcorerc'
+		_messageFAIL
+		return 1
+	fi
+	
+	
+	
+	_messagePlain_nominal '_setup_renice: hook: cron'
+	echo '@reboot '"$scriptAbsoluteLocation"' _unix_renice_execDaemon' | crontab -
+	
+	#echo '*/7 * * * * '"$scriptAbsoluteLocation"' _unix_renice'
+	#echo '*/1 * * * * '"$scriptAbsoluteLocation"' _unix_renice_app'
+}
+
+# WARNING: Recommend, using an independent installation (ie. not '~/core/infrastructure/ubiquitous_bash').
 _unix_renice_execDaemon() {
 	_cmdDaemon "$scriptAbsoluteLocation" _unix_renice_repeat
 }
@@ -13690,29 +16789,39 @@ _unix_renice_daemon() {
 }
 
 _unix_renice_repeat() {
+	# sleep 0.7
+	_unix_renice_app
+	_unix_renice
+	
+	sleep 3
+	_unix_renice_app
+	_unix_renice
+	
+	sleep 9
+	_unix_renice_app
+	_unix_renice
+	
+	sleep 27
+	_unix_renice_app
+	_unix_renice
+	
+	sleep 27
+	_unix_renice_app
+	_unix_renice
+	
+	local currentIteration
 	while true
 	do
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
+		currentIteration=0
+		while [[ "$currentIteration" -lt "4" ]]
+		do
+			sleep 120
+			[[ "$matchingEMBEDDED" != 'false' ]] && sleep 120
+			_unix_renice_app > /dev/null 2>&1
+			let currentIteration="$currentIteration"+1
+		done
 		
 		_unix_renice
-		sleep 10
 	done
 }
 
@@ -13804,6 +16913,14 @@ _unix_renice_app() {
 	
 	_priority_enumerate_pattern "^konsole$" >> "$processListFile"
 	
+	
+	_priority_enumerate_pattern "^okular$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^xournal$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^soffice.bin$" >> "$processListFile"
+	
+	
 	_priority_enumerate_pattern "^pavucontrol$" >> "$processListFile"
 	
 	local currentPID
@@ -13849,6 +16966,11 @@ _unix_renice_idle() {
 	_priority_enumerate_pattern "^mysqld$" >> "$processListFile"
 	_priority_enumerate_pattern "^ntpd$" >> "$processListFile"
 	#_priority_enumerate_pattern "^avahi-daemon$" >> "$processListFile"
+	
+	
+	# WARNING: Probably unnecessary and counterproductive. May risk halting important compile jobs.
+	#_priority_enumerate_pattern "^cc1$" >> "$processListFile"
+	#_priority_enumerate_pattern "^cc1plus$" >> "$processListFile"
 	
 	
 	local currentPID
@@ -13921,8 +17043,11 @@ _test_ethereum() {
 	_getDep GL/glx.h
 	_getDep GL/glxext.h
 	_getDep GL/internal/dri_interface.h
-	_getDep x86_64-linux-gnu/pkgconfig/dri.pc
 	
+	if ! _wantGetDep x86_64-linux-gnu/pkgconfig/dri.pc && ! _wantGetDep pkgconfig/dri.pc
+	then
+		_stop 1
+	fi
 }
 
 _test_ethereum_built() {
@@ -14667,6 +17792,7 @@ export scriptLib="$scriptAbsoluteFolder"/_lib
 [[ ! -e "$scriptLib" ]] && export scriptLib="$scriptAbsoluteFolder"
 
 
+# WARNING: Standard relied upon by other standalone scripts (eg. MSW compatible _anchor.bat )
 export scriptLocal="$scriptAbsoluteFolder"/_local
 
 #For system installations (exclusively intended to support _setupUbiquitous and _drop* hooks).
@@ -14801,6 +17927,18 @@ export globalArcTmp="$globalArcDir"/tmp
 export globalBuildDir="$scriptLocal"/b
 export globalBuildFS="$globalBuildDir"/fs
 export globalBuildTmp="$globalBuildDir"/tmp
+
+
+export ub_anchor_specificSoftwareName=""
+export ub_anchor_specificSoftwareName
+
+export ub_anchor_user=""
+export ub_anchor_user
+
+export ub_anchor_autoupgrade=""
+export ub_anchor_autoupgrade
+
+
 
 #Machine information.
 
@@ -17348,8 +20486,8 @@ _testBuiltIdle() {
 
 _buildIdle() {
 	local idleSourceCode
-	idleSourceCode="$scriptAbsoluteFolder"/generic/process/idle.c
-	! [[ -e "$idleSourceCode" ]] && idleSourceCode="$scriptLib"/ubiquitous_bash/generic/process/idle.c
+	idleSourceCode="$scriptAbsoluteFolder"/generic/process/getIdle.c
+	! [[ -e "$idleSourceCode" ]] && idleSourceCode="$scriptLib"/ubiquitous_bash/generic/process/getIdle.c
 	
 	mkdir -p "$scriptBin"
 	gcc -o "$scriptBin"/getIdle "$idleSourceCode" -lXss -lX11
@@ -17527,6 +20665,7 @@ _stop_stty_echo() {
 	[[ "$ubFoundEchoStatus" != "" ]] && stty --file=/dev/tty "$ubFoundEchoStatus" 2> /dev/null
 }
 
+# DANGER: Use of "_stop" must NOT require successful "_start". Do NOT include actions which would not be safe if "_start" was not used or unsuccessful.
 _stop() {
 	_stop_stty_echo
 	
@@ -18059,6 +21198,16 @@ _test() {
 	rm -f "$safeTmp"/flock > /dev/null 2>&1
 	rm -f "$safeTmp"/ready > /dev/null 2>&1
 	
+	ln -s /dev/null "$safeTmp"/working
+	ln -s /dev/null/broken "$safeTmp"/broken
+	if ! [[ -h "$safeTmp"/broken ]] || ! [[ -h "$safeTmp"/working ]] || [[ -e "$safeTmp"/broken ]] || ! [[ -e "$safeTmp"/working ]]
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	rm -f "$safeTmp"/working
+	rm -f "$safeTmp"/broken
+	
 	_messagePASS
 	
 	
@@ -18115,11 +21264,17 @@ _test() {
 	_getDep bash
 	_getDep echo
 	_getDep cat
+	_getDep tac
 	_getDep type
 	_getDep mkdir
 	_getDep trap
 	_getDep return
 	_getDep set
+	
+	# WARNING: Deprecated. Migrate to 'type -p' instead when possible.
+	# WARNING: No known production use.
+	#https://unix.stackexchange.com/questions/85249/why-not-use-which-what-to-use-then
+	_getDep which
 	
 	_getDep printf
 	
@@ -18326,6 +21481,15 @@ _setupCommands() {
 #	true
 #}
 
+
+_setup_anchor() {
+	if type "_associate_anchors_request" > /dev/null 2>&1
+	then
+		_tryExec "_associate_anchors_request"
+		return
+	fi
+}
+
 _setup() {
 	_start
 	
@@ -18352,6 +21516,8 @@ _setup() {
 	
 	_tryExec "_setup_prog"
 	
+	_setup_anchor
+	
 	_stop
 }
 
@@ -18372,10 +21538,56 @@ _package_prog() {
 	true
 }
 
+
+_package_ubcp_copy() {
+	mkdir -p "$safeTmp"/package/_local
+	
+	if [[ -e "$scriptLocal"/ubcp ]]
+	then
+		cp -a "$scriptLocal"/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	if [[ -e "$scriptLib"/ubcp ]]
+	then
+		cp -a "$scriptLib"/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	if [[ -e "$scriptAbsoluteFolder"/ubcp ]]
+	then
+		cp -a "$scriptAbsoluteFolder"/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	
+	
+	if [[ -e "$scriptLib"/ubiquitous_bash/_local/ubcp ]]
+	then
+		cp -a "$scriptLib"/ubiquitous_bash/_local/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	if [[ -e "$scriptLib"/ubiquitous_bash/_lib/ubcp ]]
+	then
+		cp -a "$scriptLib"/ubiquitous_bash/_lib/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	if [[ -e "$scriptLib"/ubiquitous_bash/ubcp ]]
+	then
+		cp -a "$scriptLib"/ubiquitous_bash/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	
+	
+	cd "$outerPWD"
+	_stop 1
+}
+
+
 # WARNING Must define "_package_license" function in ops to include license files in package!
-_package() {
+_package_procedure() {
 	_start
 	mkdir -p "$safeTmp"/package
+	
+	# WARNING: Largely due to presence of '.gitignore' files in 'ubcp' .
+	export safeToDeleteGit="true"
 	
 	_package_prog
 	
@@ -18389,6 +21601,12 @@ _package() {
 	cp -a "$scriptAbsoluteFolder"/ops "$safeTmp"/package/
 	cp -a "$scriptAbsoluteFolder"/ops.sh "$safeTmp"/package/
 	
+	cp "$scriptAbsoluteFolder"/_* "$safeTmp"/package/
+	cp "$scriptAbsoluteFolder"/*.sh "$safeTmp"/package/
+	
+	cp -a "$scriptLocal"/ops "$safeTmp"/package/
+	cp -a "$scriptLocal"/ops.sh "$safeTmp"/package/
+	
 	#cp -a "$scriptAbsoluteFolder"/_bin "$safeTmp"
 	#cp -a "$scriptAbsoluteFolder"/_config "$safeTmp"
 	#cp -a "$scriptAbsoluteFolder"/_prog "$safeTmp"
@@ -18398,23 +21616,93 @@ _package() {
 	cp -a "$scriptAbsoluteFolder"/README.md "$safeTmp"/package/
 	cp -a "$scriptAbsoluteFolder"/USAGE.html "$safeTmp"/package/
 	
+	if [[ "$ubPackage_enable_ubcp" == 'true' ]]
+	then
+		_package_ubcp_copy "$@"
+	fi
+	
 	cd "$safeTmp"/package/
-	tar -czvf "$scriptAbsoluteFolder"/package.tar.gz .
+	
+	! [[ "$ubPackage_enable_ubcp" == 'true' ]] && tar -czvf "$scriptAbsoluteFolder"/package.tar.gz .
+	[[ "$ubPackage_enable_ubcp" == 'true' ]] && tar -czvf "$scriptAbsoluteFolder"/package_ubcp.tar.gz .
+	
+	if [[ "$ubPackage_enable_ubcp" == 'true' ]]
+	then
+		_messagePlain_request 'request: review contents of _local/ubcp/cygwin/home and similar directories'
+	fi
 	
 	cd "$outerPWD"
 	_stop
 }
 
+_package() {
+	export ubPackage_enable_ubcp='false'
+	"$scriptAbsoluteLocation" _package_procedure "$@"
+	
+	export ubPackage_enable_ubcp='true'
+	"$scriptAbsoluteLocation" _package_procedure "$@"
+}
+
+
+
+
+
+
+
 
 
 ##### Core
 
+_freerouting() {
+	"$scriptLib"/freerouting_released/freerouting-1.4.4-linux-x64/bin/Freerouting
+}
+
+
+
+_refresh_anchors() {
+	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_freerouting
+}
+
+
+
 
 #####Program
 
+# WARNING: OBSOLETE. No production use.
+# _java_freerouting() {
+# 	if type /usr/lib/jvm/java-11-openjdk-amd64/bin/java
+# 	then
+# 		/usr/lib/jvm/java-11-openjdk-amd64/bin/java "$@"
+# 		return
+# 	fi
+# 	
+# 	if type /usr/lib/jvm/java-8-openjdk-amd64/bin/java
+# 	then
+# 		/usr/lib/jvm/java-8-openjdk-amd64/bin/java "$@"
+# 		return
+# 	fi
+# 	
+# 	if type /usr/lib/jvm/java-8-openjdk/jre/bin/java
+# 	then
+# 		/usr/lib/jvm/java-8-openjdk/jre/bin/java "$@"
+# 		return
+# 	fi
+# 	
+# 	_messagePlain_bad 'fail: missing: java'
+# }
+
+# _freerouting() {
+# 	_java_freerouting -jar "$scriptLib"/freerouting/binaries/FreeRouting.jar "$@"
+# }
+
+# WARNING: No known production use.
+freerouting() {
+	_freerouting "$@"
+}
+
 #Typically launches an application - ie. through virtualized container.
 _launch() {
-	false
+	_freerouting "$@"
 	#"$@"
 }
 
@@ -18702,9 +21990,19 @@ _deps_blockchain() {
 	export enUb_blockchain="true"
 }
 
+_deps_java() {
+	export enUb_java="true"
+}
+
 _deps_image() {
 	_deps_notLean
 	_deps_machineinfo
+	
+	# DANGER: Required for safety mechanisms which may also be used by some other virtualization backends!
+	# _deps_image
+	# _deps_chroot
+	# _deps_vbox
+	# _deps_qemu
 	export enUb_image="true"
 }
 
@@ -18718,6 +22016,13 @@ _deps_virt_thick() {
 
 _deps_virt() {
 	_deps_machineinfo
+	
+	# WARNING: Includes 'findInfrastructure_virt' which may be a dependency of multiple virtualization backends.
+	# _deps_image
+	# _deps_chroot
+	# _deps_vbox
+	# _deps_qemu
+	# _deps_docker
 	export enUb_virt="true"
 }
 
@@ -18821,6 +22126,13 @@ _deps_stopwatch() {
 	export enUb_stopwatch="true"
 }
 
+# WARNING: Specifically refers to 'Linux', the kernel, and things specific to it, NOT any other UNIX like features.
+# WARNING: Beware Linux shortcut specific dependency programs must not be required, or will break other operating systems!
+# ie. _test_linux must not require Linux-only binaries
+_deps_linux() {
+	export enUb_linux="true"
+}
+
 #placeholder, define under "metaengine/build"
 #_deps_metaengine() {
 #	_deps_notLean
@@ -18854,6 +22166,7 @@ _generate_bash() {
 	_compile_bash_selfHost
 	_compile_bash_selfHost_prog
 	
+	_compile_bash_overrides_disable
 	_compile_bash_overrides
 	
 	_includeScripts "${includeScriptList[@]}"
@@ -18944,7 +22257,6 @@ _compile_bash_deps() {
 	
 	if [[ "$1" == "processor" ]]
 	then
-		
 		_deps_dev
 		
 		_deps_channel
@@ -18954,7 +22266,7 @@ _compile_bash_deps() {
 		return 0
 	fi
 	
-	if [[ "$1" == "abstract" ]]
+	if [[ "$1" == "abstract" ]] || [[ "$1" == "abstractfs" ]]
 	then
 		_deps_dev
 		
@@ -18962,6 +22274,21 @@ _compile_bash_deps() {
 		
 		_deps_metaengine
 		
+		_deps_abstractfs
+		
+		return 0
+	fi
+	
+	# Beware most uses of fakehome will benefit from full virtualization fallback.
+	if [[ "$1" == "fakehome" ]]
+	then
+		_deps_dev
+		
+		_deps_channel
+		
+		_deps_metaengine
+		
+		_deps_fakehome
 		_deps_abstractfs
 		
 		return 0
@@ -18976,6 +22303,9 @@ _compile_bash_deps() {
 		
 		_deps_notLean
 		_deps_os_x11
+		
+		_deps_java
+		
 		
 		_deps_x11
 		_deps_image
@@ -19015,6 +22345,13 @@ _compile_bash_deps() {
 		#_deps_proxy
 		#_deps_proxy_special
 		
+		# WARNING: Linux *kernel* admin assistance *only*. NOT any other UNIX like features.
+		# WARNING: Beware Linux shortcut specific dependency programs must not be required, or will break other operating systems!
+		# ie. _test_linux must not require Linux-only binaries
+		_deps_linux
+		
+		_deps_stopwatch
+		
 		_deps_build
 		
 		_deps_build_bash
@@ -19032,6 +22369,9 @@ _compile_bash_deps() {
 		
 		_deps_notLean
 		_deps_os_x11
+		
+		_deps_java
+		
 		
 		_deps_x11
 		_deps_image
@@ -19070,6 +22410,10 @@ _compile_bash_deps() {
 		
 		_deps_proxy
 		_deps_proxy_special
+		
+		_deps_stopwatch
+		
+		_deps_linux
 		
 		_deps_build
 		
@@ -19205,7 +22549,16 @@ _compile_bash_utilities() {
 	includeScriptList+=( "special"/uuid.sh )
 	
 	[[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "instrumentation"/bashdb/bashdb.sh )
-	([[ "$enUb_notLean" == "true" ]] || [[ "$enUb_stopwatch" == "true" ]]) && includeScriptList+=( "instrumentation"/profiling/stopwatch.sh )
+	( [[ "$enUb_notLean" == "true" ]] || [[ "$enUb_stopwatch" == "true" ]] ) && includeScriptList+=( "instrumentation"/profiling/stopwatch.sh )
+}
+
+# Specifically intended to support Eclipse as necessary for building existing software .
+# Java is regarded as something similar to, but not, an unusual virtualization backend, due to its perhaps rare combination of portability, ongoing incompatible versions, lack of root or kernelspace requirements, typical operating system wide installation, and overall complexity.
+# Multiple 'jre' and 'jdk' packages or script contained versions may be able to, or required, to satisfy related dependencies.
+# WARNING: This is intended to provide for java *applications*, NOT necessarily browser java 'applets'.
+# WARNING: Do NOT deprecate java versions for 'security' reasons - this is intended ONLY to support applications which already normally require user or root permissions.
+_compile_bash_utilities_java() {
+	[[ "$enUb_java" == "true" ]] && includeScriptList+=( "special/java"/java.sh )
 }
 
 _compile_bash_utilities_virtualization() {
@@ -19223,6 +22576,8 @@ _compile_bash_utilities_virtualization() {
 	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/localPathTranslation.sh )
 	
 	[[ "$enUb_abstractfs" == "true" ]] && includeScriptList+=( "virtualization/abstractfs"/abstractfs.sh )
+	[[ "$enUb_abstractfs" == "true" ]] && includeScriptList+=( "virtualization/abstractfs"/abstractfs_appdir_specific.sh )
+	[[ "$enUb_abstractfs" == "true" ]] && includeScriptList+=( "virtualization/abstractfs"/abstractfs_appdir.sh )
 	[[ "$enUb_abstractfs" == "true" ]] && includeScriptList+=( "virtualization/abstractfs"/abstractfsvars.sh )
 	
 	[[ "$enUb_fakehome" == "true" ]] && includeScriptList+=( "virtualization/fakehome"/fakehomemake.sh )
@@ -19269,6 +22624,7 @@ _compile_bash_utilities_virtualization() {
 	[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "virtualization/docker"/dockeruser.sh )
 }
 
+# WARNING: Shortcuts must NOT cause _stop/exit failures in _test/_setup procedures!
 _compile_bash_shortcuts() {
 	export includeScriptList
 	
@@ -19282,7 +22638,14 @@ _compile_bash_shortcuts() {
 	
 	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/devemacs.sh )
 	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/devatom.sh )
-	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/deveclipse.sh )
+	
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_java.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_env.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_bin_.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_app.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_example_export.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_example.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse.sh )
 	
 	includeScriptList+=( "shortcuts/dev/query"/devquery.sh )
 	
@@ -19325,6 +22688,13 @@ _compile_bash_shortcuts() {
 	[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockercontainer.sh )
 	
 	[[ "$enUb_image" == "true" ]] && includeScriptList+=( "shortcuts/image"/gparted.sh )
+	
+	
+	[[ "$enUb_linux" == "true" ]] && includeScriptList+=( "shortcuts/linux"/kernelConfig_here.sh )
+	[[ "$enUb_linux" == "true" ]] && includeScriptList+=( "shortcuts/linux"/kernelConfig.sh )
+	[[ "$enUb_linux" == "true" ]] && includeScriptList+=( "shortcuts/linux"/kernelConfig_platform.sh )
+	
+	[[ "$enUb_linux" == "true" ]] && includeScriptList+=( "shortcuts/linux"/bfq.sh )
 }
 
 _compile_bash_shortcuts_setup() {
@@ -19490,6 +22860,13 @@ _compile_bash_overrides() {
 	includeScriptList+=( "structure"/overrides.sh )
 }
 
+_compile_bash_overrides_disable() {
+	export includeScriptList
+	
+	
+	includeScriptList+=( "structure"/overrides_disable.sh )
+}
+
 _compile_bash_entry() {
 	export includeScriptList
 	
@@ -19548,6 +22925,7 @@ _compile_bash() {
 	_compile_bash_essential_utilities_prog
 	_compile_bash_utilities
 	_compile_bash_utilities_prog
+	_compile_bash_utilities_java
 	_compile_bash_utilities_virtualization
 	_compile_bash_utilities_virtualization_prog
 	
@@ -19810,53 +23188,58 @@ then
 	trap 'excode=$?; trap "" EXIT; _stop_emergency $excode; echo $excode' INT TERM	# ignore
 fi
 
-#Override functions with external definitions from a separate file if available.
-#if [[ -e "./ops" ]]
-#then
-#	. ./ops
-#fi
+# DANGER: NEVER intended to be set in an end user shell for ANY reason.
+# DANGER: Implemented to prevent 'compile.sh' from attempting to run functions from 'ops.sh'. No other valid use currently known or anticipated!
+if [[ "$ub_ops_disable" != 'true' ]]
+then
+	#Override functions with external definitions from a separate file if available.
+	#if [[ -e "./ops" ]]
+	#then
+	#	. ./ops
+	#fi
 
-#Override functions with external definitions from a separate file if available.
-# CAUTION: Recommend only "ops" or "ops.sh" . Using both can cause confusion.
-# ATTENTION: Recommend "ops.sh" only when unusually long. Specifically intended for "CoreAutoSSH" .
-if [[ -e "$objectDir"/ops ]]
-then
-	. "$objectDir"/ops
-fi
-if [[ -e "$objectDir"/ops.sh ]]
-then
-	. "$objectDir"/ops.sh
-fi
-if [[ -e "$scriptLocal"/ops ]]
-then
-	. "$scriptLocal"/ops
-fi
-if [[ -e "$scriptLocal"/ops.sh ]]
-then
-	. "$scriptLocal"/ops.sh
-fi
-if [[ -e "$scriptLocal"/ssh/ops ]]
-then
-	. "$scriptLocal"/ssh/ops
-fi
-if [[ -e "$scriptLocal"/ssh/ops.sh ]]
-then
-	. "$scriptLocal"/ssh/ops.sh
-fi
+	#Override functions with external definitions from a separate file if available.
+	# CAUTION: Recommend only "ops" or "ops.sh" . Using both can cause confusion.
+	# ATTENTION: Recommend "ops.sh" only when unusually long. Specifically intended for "CoreAutoSSH" .
+	if [[ -e "$objectDir"/ops ]]
+	then
+		. "$objectDir"/ops
+	fi
+	if [[ -e "$objectDir"/ops.sh ]]
+	then
+		. "$objectDir"/ops.sh
+	fi
+	if [[ -e "$scriptLocal"/ops ]]
+	then
+		. "$scriptLocal"/ops
+	fi
+	if [[ -e "$scriptLocal"/ops.sh ]]
+	then
+		. "$scriptLocal"/ops.sh
+	fi
+	if [[ -e "$scriptLocal"/ssh/ops ]]
+	then
+		. "$scriptLocal"/ssh/ops
+	fi
+	if [[ -e "$scriptLocal"/ssh/ops.sh ]]
+	then
+		. "$scriptLocal"/ssh/ops.sh
+	fi
 
-#WILL BE OVERWRITTEN FREQUENTLY.
-#Intended for automatically generated shell code identifying usable resources, such as unused network ports. Do NOT use for serialization of internal variables (use $varStore for that).
-if [[ -e "$objectDir"/opsauto ]]
-then
-	. "$objectDir"/opsauto
-fi
-if [[ -e "$scriptLocal"/opsauto ]]
-then
-	. "$scriptLocal"/opsauto
-fi
-if [[ -e "$scriptLocal"/ssh/opsauto ]]
-then
-	. "$scriptLocal"/ssh/opsauto
+	#WILL BE OVERWRITTEN FREQUENTLY.
+	#Intended for automatically generated shell code identifying usable resources, such as unused network ports. Do NOT use for serialization of internal variables (use $varStore for that).
+	if [[ -e "$objectDir"/opsauto ]]
+	then
+		. "$objectDir"/opsauto
+	fi
+	if [[ -e "$scriptLocal"/opsauto ]]
+	then
+		. "$scriptLocal"/opsauto
+	fi
+	if [[ -e "$scriptLocal"/ssh/opsauto ]]
+	then
+		. "$scriptLocal"/ssh/opsauto
+	fi
 fi
 
 #Wrapper function to launch arbitrary commands within the ubiquitous_bash environment, including its PATH with scriptBin.
